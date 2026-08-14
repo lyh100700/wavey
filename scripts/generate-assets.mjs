@@ -189,6 +189,43 @@ for (const density of Object.keys(SPLASH_WIDTHS)) {
   rmSync(join(res, `drawable-port-${density}/splash.png`), { force: true })
 }
 
+console.log('앱 화면에 쓸 마스코트 오려내는 중…')
+{
+  // 스플래시 한가운데의 원형 메달리온을 잘라낸다.
+  //
+  // 투명한 PNG로 두면 400KB가 넘는다. 그림이 원래 동그라므로 네모로 잘라
+  // JPEG으로 저장하고 둥글게 만드는 일은 CSS에 맡긴다 — 60KB로 줄어든다.
+  const src = readPng(SPLASH_SRC)
+  const cx = Math.round(src.width * 0.501)
+  const cy = Math.round(src.height * 0.446)
+  const crop = 500 // 원본에서 잘라낼 범위
+  const size = 384 // 실제로 내보낼 크기 (화면에서 최대 192px로 쓰므로 2배면 충분)
+  const square = new PNG({ width: size, height: size })
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const sx = Math.round(cx - crop / 2 + x * (crop / size))
+      const sy = Math.round(cy - crop / 2 + y * (crop / size))
+      const clampedX = Math.min(Math.max(sx, 0), src.width - 1)
+      const clampedY = Math.min(Math.max(sy, 0), src.height - 1)
+      const from = (src.width * clampedY + clampedX) << 2
+      const to = (size * y + x) << 2
+      square.data[to] = src.data[from]
+      square.data[to + 1] = src.data[from + 1]
+      square.data[to + 2] = src.data[from + 2]
+      square.data[to + 3] = 255
+    }
+  }
+
+  mkdirSync(tmp, { recursive: true })
+  const squarePath = join(tmp, 'mascot-square.png')
+  writePng(square, squarePath)
+  mkdirSync(join(root, 'public'), { recursive: true })
+  sh('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '82', squarePath, '--out', join(root, 'public/mascot.jpg')])
+  rmSync(join(root, 'public/mascot.png'), { force: true })
+  console.log(`  public/mascot.jpg ${size}×${size}`)
+}
+
 const iconEdge = cornerColor(ICON_SRC)
 const splashTop = centerColor(SPLASH_SRC)
 console.log('\n뽑아낸 색')

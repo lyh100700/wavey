@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { FolderOpen, ListMusic, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { SleepingMascot } from './Mascot.jsx'
 import TrackList from './TrackList.jsx'
-import WaveGlyph from './WaveGlyph.jsx'
 
 const TABS = [
   { key: 'playlist', label: '플레이리스트', icon: ListMusic },
@@ -45,12 +45,11 @@ function TabButton({ tab, active, count, onClick }) {
   )
 }
 
-function EmptyHint({ icon: Icon, title, body, actionLabel, onAction, secondary }) {
+function EmptyHint({ title, body, actionLabel, onAction, secondary }) {
   return (
-    <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-      <div className="droplet grid size-16 place-items-center bg-gradient-to-br from-soda/30 to-mint/30 ring-4 ring-white/70">
-        <Icon className="size-7 -rotate-45 text-soda-deep" />
-      </div>
+    <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-4 text-center">
+      {/* 목록이 비었으니 마스코트도 파도 위에서 한숨 자고 있다 */}
+      <SleepingMascot />
       <div>
         <p className="text-sm font-bold text-ink">{title}</p>
         <p className="mt-1 text-xs text-ink-soft">{body}</p>
@@ -58,7 +57,7 @@ function EmptyHint({ icon: Icon, title, body, actionLabel, onAction, secondary }
       <button
         type="button"
         onClick={onAction}
-        className="rounded-2xl bg-gradient-to-br from-soda to-mint px-5 py-2.5 text-sm font-bold text-white shadow-pastel transition hover:brightness-105 active:scale-95"
+        className="rounded-2xl bg-gradient-to-r from-soda to-mint px-5 py-2.5 text-sm font-bold text-white shadow-pastel transition hover:brightness-105 active:scale-95"
       >
         {actionLabel}
       </button>
@@ -212,7 +211,6 @@ export default function MediaPanel({
               </div>
             ) : isPlaylist ? (
               <EmptyHint
-                icon={WaveGlyph}
                 title="플레이리스트가 비어 있어요"
                 body="듣고 싶은 곡을 하나씩 담아 보세요"
                 actionLabel="곡 고르기"
@@ -220,7 +218,6 @@ export default function MediaPanel({
               />
             ) : (
               <EmptyHint
-                icon={FolderOpen}
                 title="아직 폴더를 고르지 않았어요"
                 body={
                   folderPickSupported

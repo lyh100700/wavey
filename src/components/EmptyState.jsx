@@ -1,25 +1,19 @@
-import { motion } from 'framer-motion'
 import { FolderOpen, Music } from 'lucide-react'
-import WaveGlyph from './WaveGlyph.jsx'
+import FloatingDecor from './Decorations.jsx'
+import Mascot from './Mascot.jsx'
 
 /** 재생할 미디어가 하나도 없을 때 보여 주는 잔잔한 바다. */
 export default function EmptyState({ onPick, onPickFolder }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-6 px-2 py-10 text-center">
-      {/* 잠든 물방울 마스코트 */}
-      <motion.div
-        className="relative grid size-28 place-items-center"
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <div className="absolute inset-0 rounded-full bg-mint/25 blur-2xl" />
-        <div className="droplet grid size-20 place-items-center bg-gradient-to-br from-soda/35 to-mint/35 shadow-pastel ring-4 ring-white/70">
-          <WaveGlyph className="size-9 -rotate-45 text-soda-deep" />
-        </div>
-      </motion.div>
+    <div className="relative flex flex-col items-center gap-6 px-2 py-8 text-center">
+      {/* 물방울·음표·물고기가 여백에 떠다닌다 */}
+      <FloatingDecor />
 
-      <div className="space-y-2">
-        <p className="text-base font-bold text-ink">
+      <Mascot size="w-40 sm:w-48" />
+
+      {/* 글자는 장식 위로 올라와야 읽힌다 */}
+      <div className="relative space-y-2">
+        <p className="text-balance text-base font-bold leading-relaxed text-ink sm:text-lg">
           파도가 조용해요! 미디어 파일을 끌어다 놓아주세요 🌊
         </p>
         <p className="text-xs text-ink-soft">
@@ -28,11 +22,11 @@ export default function EmptyState({ onPick, onPickFolder }) {
       </div>
 
       {/* 두 갈래 — 곡을 하나씩 담거나, 폴더를 통째로 열거나 */}
-      <div className="flex w-full flex-col gap-2 sm:flex-row">
+      <div className="relative flex w-full flex-col gap-2.5">
         <button
           type="button"
           onClick={onPick}
-          className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-soda to-mint px-5 py-3 text-sm font-bold text-white shadow-pastel-lg transition hover:brightness-105 active:scale-95"
+          className="flex items-center justify-center gap-2 rounded-3xl bg-gradient-to-r from-soda to-mint px-5 py-3.5 text-sm font-bold text-white shadow-pastel-lg transition hover:brightness-105 active:scale-[0.98]"
         >
           <Music className="size-4" />
           곡 고르기
@@ -40,7 +34,7 @@ export default function EmptyState({ onPick, onPickFolder }) {
         <button
           type="button"
           onClick={onPickFolder}
-          className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white/80 px-5 py-3 text-sm font-bold text-soda-deep shadow-pastel transition hover:bg-white active:scale-95"
+          className="flex items-center justify-center gap-2 rounded-3xl bg-white/85 px-5 py-3.5 text-sm font-bold text-soda-deep shadow-pastel ring-1 ring-white transition hover:bg-white active:scale-[0.98]"
         >
           <FolderOpen className="size-4" />
           폴더 열기
