@@ -9,6 +9,7 @@ import SeekBar from './components/SeekBar.jsx'
 import Stage from './components/Stage.jsx'
 import WaveGlyph from './components/WaveGlyph.jsx'
 import useMediaSession from './hooks/useMediaSession.js'
+import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
 import {
   clearSource,
@@ -483,17 +484,29 @@ export default function App() {
 
   /* ── 잠금화면 · 알림창 · 이어폰 버튼 ───────────────────────── */
 
+  const sourceLabel = playingSource === 'folder' ? folderName || '폴더' : '플레이리스트'
+
   useMediaSession({
     track: current,
     playing,
     currentTime,
     duration,
-    sourceLabel: playingSource === 'folder' ? folderName || '폴더' : '플레이리스트',
+    sourceLabel,
     onPlay: play,
     onPause: pause,
     onNext: next,
     onPrev: prev,
     onSeek: seek,
+  })
+
+  // 안드로이드 앱일 때, 다른 화면으로 나가도 상태바에 Wavey를 남겨 둔다.
+  useNowPlayingNotice({
+    track: current,
+    playing,
+    sourceLabel,
+    onTogglePlay: togglePlay,
+    onNext: next,
+    onPrev: prev,
   })
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */

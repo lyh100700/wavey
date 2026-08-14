@@ -33,9 +33,29 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!--
+          다른 화면으로 나가도 상태바에 Wavey가 남아 있게 해 주는 부분.
+          알림의 ⏮ ⏯ ⏭ 버튼을 눌렀을 때 앱으로 전달하는 수신기와,
+          음악을 계속 틀어 두는 서비스다.
+        -->
+        <receiver
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver"
+            android:exported="false" />
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 앱을 벗어나도 음악을 계속 틀기 위한 권한 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 안드로이드 13부터는 알림을 띄우려면 사용자 허락이 필요하다 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

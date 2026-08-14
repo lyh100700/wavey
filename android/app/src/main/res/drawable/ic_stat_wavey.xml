@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  상태바(맨 위 시계 줄)에 뜨는 작은 아이콘.
+  안드로이드는 이 아이콘을 흰 실루엣으로만 그리므로 색은 넣지 않고 모양만 만든다.
+-->
+<vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+
+    <path
+        android:pathData="M2,7.2 c2.2,-2.4 4.4,-2.4 6.6,0 s4.4,2.4 6.6,0 s4.4,-2.4 6.8,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M2,12.6 c2.2,-2.4 4.4,-2.4 6.6,0 s4.4,2.4 6.6,0 s4.4,-2.4 6.8,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M2,18 c2.2,-2.4 4.4,-2.4 6.6,0 s4.4,2.4 6.6,0 s4.4,-2.4 6.8,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
