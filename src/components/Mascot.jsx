@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import SleepingDog from './SleepingDog.jsx'
 
 // 그림은 네모난 JPEG이고 동그랗게 만드는 건 CSS가 한다 (투명 PNG보다 훨씬 가볍다).
 const SRC = './mascot.jpg'
@@ -29,34 +30,23 @@ export default function Mascot({ size = 'w-44', floating = true, className = '' 
   )
 }
 
-/** 목록이 비었을 때 쓰는, 파도 위에서 자는 장면. */
+/**
+ * 목록이 비었을 때 쓰는, 파도 위에서 자는 장면.
+ * 위쪽 마스코트와 겹치지 않도록 사진이 아니라 따로 그린 그림을 쓴다.
+ */
 export function SleepingMascot() {
   return (
     <div className="relative flex w-full flex-col items-center">
-      <div className="relative">
-        <Mascot size="w-24" />
+      <motion.div
+        className="w-44"
+        animate={{ y: [0, -5, 0] }}
+        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <SleepingDog className="w-full" />
+      </motion.div>
 
-        {/* 새근새근 — 크기가 다른 z가 차례로 떠오른다 */}
-        {['z', 'z', 'Z'].map((z, i) => (
-          <motion.span
-            key={i}
-            className="absolute font-black text-soda-deep/60"
-            style={{
-              right: -6 - i * 9,
-              top: 6 - i * 12,
-              fontSize: `${11 + i * 4}px`,
-            }}
-            animate={{ y: [0, -8, 0], opacity: [0.2, 0.9, 0.2] }}
-            transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
-            aria-hidden="true"
-          >
-            {z}
-          </motion.span>
-        ))}
-      </div>
-
-      {/* 마스코트를 받치는 잔물결 */}
-      <div className="-mt-5 h-10 w-full overflow-hidden">
+      {/* 강아지를 받치는 잔물결 */}
+      <div className="-mt-4 h-9 w-full overflow-hidden">
         <svg
           className="animate-wave-slide h-full w-[200%] text-soda/30"
           viewBox="0 0 1200 60"
