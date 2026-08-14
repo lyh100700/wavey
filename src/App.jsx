@@ -703,6 +703,7 @@ export default function App() {
               duration={duration}
               playing={playing}
               disabled={!current}
+              getMedia={activeEl}
               onSeek={seek}
               onScrubStart={() => {
                 scrubbing.current = true
