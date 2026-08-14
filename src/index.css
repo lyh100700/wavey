@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+
+/* ── Wavey 테마 토큰 ─────────────────────────────────────────── */
+@theme {
+  --color-soda: #70d6ff;
+  --color-soda-deep: #3ab7ee;
+  --color-mint: #a0e7e5;
+  --color-mint-deep: #6fd6d3;
+  --color-coral: #ff85a1;
+  --color-ice: #f4f9fc;
+  --color-ink: #2b4a5b;
+  --color-ink-soft: #7ba0b2;
+
+  --shadow-pastel: 0 10px 30px -12px rgba(112, 214, 255, 0.55);
+  --shadow-pastel-lg: 0 26px 60px -22px rgba(112, 214, 255, 0.65);
+  --shadow-coral: 0 10px 26px -10px rgba(255, 133, 161, 0.6);
+
+  --font-sans:
+    'Pretendard', 'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── 기본 레이아웃 ───────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ice);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  /* 안드로이드 웹뷰에서 길게 눌렀을 때 뜨는 파란 선택 박스를 없앤다. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 앱 뒤에 깔리는 은은한 파스텔 물빛 배경 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(112, 214, 255, 0.28), transparent 60%),
+    radial-gradient(48rem 36rem at 92% 8%, rgba(160, 231, 229, 0.32), transparent 62%),
+    radial-gradient(44rem 34rem at 50% 108%, rgba(255, 133, 161, 0.18), transparent 60%);
+}
+
+/* 스크롤바도 파도 톤으로 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(112, 214, 255, 0.45);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+/* ── 파도/물결 애니메이션 ────────────────────────────────────── */
+
+/* 앨범 아트 안의 물이 좌우로 넘실거리는 움직임 */
+@keyframes wave-slide {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* 물결이 위아래로 살랑이는 움직임 */
+@keyframes wave-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* 물방울 썸이 통통 뛰는 움직임 */
+@keyframes droplet-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(112, 214, 255, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(112, 214, 255, 0);
+  }
+}
+
+.animate-wave-slide {
+  animation: wave-slide 7s linear infinite;
+}
+.animate-wave-slide-slow {
+  animation: wave-slide 11s linear infinite reverse;
+}
+.animate-wave-bob {
+  animation: wave-bob 4.5s ease-in-out infinite;
+}
+.animate-droplet-pulse {
+  animation: droplet-pulse 2s ease-out infinite;
+}
+
+/* 재생이 멈추면 물결도 잔잔해진다 */
+.waves-paused .animate-wave-slide,
+.waves-paused .animate-wave-slide-slow,
+.waves-paused .animate-wave-bob,
+.waves-paused .animate-droplet-pulse {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wave-slide,
+  .animate-wave-slide-slow,
+  .animate-wave-bob,
+  .animate-droplet-pulse {
+    animation: none;
+  }
+}
+
+/* ── 유틸 ────────────────────────────────────────────────────── */
+
+/* 물방울(눈물) 모양 — 한쪽 모서리만 뾰족하게 */
+.droplet {
+  border-radius: 50% 50% 50% 6px;
+  transform: rotate(45deg);
+}
+
+/* 안드로이드 상태바 / 제스처바 침범 방지 */
+.safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}

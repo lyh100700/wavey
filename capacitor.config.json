@@ -1,0 +1,9 @@
+{
+  "appId": "com.wavey.player",
+  "appName": "Wavey",
+  "webDir": "dist",
+  "backgroundColor": "#F4F9FC",
+  "android": {
+    "backgroundColor": "#F4F9FC"
+  }
+}

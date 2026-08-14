@@ -1,0 +1,23 @@
+React (Vite), Tailwind CSS, Framer Motion, lucide-react를 사용하여 귀엽고 깔끔한 미디어 플레이어 앱 'Wavey (웨이비)'를 제작해줘.
+
+[1. 디자인 & 테마 시스템]
+- 테마 컬러: 
+  * Primary: Soda Blue (#70D6FF)
+  * Secondary: Soft Mint (#A0E7E5)
+  * Accent: Coral Pink (#FF85A1)
+  * Background: Soft Cream Ice (#F4F9FC)
+- UI 스타일: 전체적으로 둥글둥글한 모서리(rounded-3xl), 부드러운 파스텔 그림자(shadow-md), 깔끔한 Glassmorphism 효과 적용.
+
+[2. 메인 플레이어 기능 & UI]
+- [음악 모드]: 
+  * 재생 중일 때 앨범 아트 주변으로 파스텔 톤의 물물결(Wave Rippling) 애니메이션이 잔잔하게 퍼짐.
+  * 하단 재생 바(Seek Bar)의 위치 조작점(Thumb)은 물방울/파도 모양 아이콘으로 디자인.
+- [비디오 모드]: 
+  * rounded-3xl로 부드럽게 감싸진 비디오 뷰어.
+  * 마우스 호버 시 물방울처럼 스르륵 올라오는 파스텔 컨트롤 바.
+- 로컬 파일(.mp3, .mp4, .wav 등) 드래그 앤 드롭 업로드 및 재생 지원.
+
+[3. 플레이리스트 & 상태 연출]
+- 미디어 목록 추가, 삭제, 검색 기능.
+- 재생 중인 곡 옆에는 둠칫거리는 미니 파도 음파(Equalizer) 애니메이션 표시.
+- 재생할 미디어가 없을 때: "파도가 조용해요! 미디어 파일을 끌어다 놓아주세요 🌊" 메시지 노출.

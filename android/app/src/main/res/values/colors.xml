@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Wavey 브랜드 팔레트 -->
+    <color name="colorPrimary">#70D6FF</color>
+    <color name="colorPrimaryDark">#3AB7EE</color>
+    <color name="colorAccent">#FF85A1</color>
+
+    <!-- 웹뷰 뒤에 깔리는 바탕색. 앱을 열 때 흰 화면이 번쩍이지 않게 한다. -->
+    <color name="waveyBackground">#F4F9FC</color>
+
+    <color name="ic_launcher_background">#70D6FF</color>
+</resources>
