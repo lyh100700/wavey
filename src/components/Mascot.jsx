@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion'
-import SleepingDog from './SleepingDog.jsx'
 
 // 그림은 네모난 JPEG이고 동그랗게 만드는 건 CSS가 한다 (투명 PNG보다 훨씬 가볍다).
 const SRC = './mascot.jpg'
@@ -32,33 +31,24 @@ export default function Mascot({ size = 'w-44', floating = true, className = '' 
 
 /**
  * 목록이 비었을 때 쓰는, 파도 위에서 자는 장면.
- * 위쪽 마스코트와 겹치지 않도록 사진이 아니라 따로 그린 그림을 쓴다.
+ * 위쪽 마스코트(동그란 사진)와 다른 그림이라 화면이 단조로워지지 않는다.
  */
 export function SleepingMascot() {
   return (
-    <div className="relative flex w-full flex-col items-center">
-      <motion.div
-        className="w-44"
-        animate={{ y: [0, -5, 0] }}
-        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <SleepingDog className="w-full" />
-      </motion.div>
-
-      {/* 강아지를 받치는 잔물결 */}
-      <div className="-mt-4 h-9 w-full overflow-hidden">
-        <svg
-          className="animate-wave-slide h-full w-[200%] text-soda/30"
-          viewBox="0 0 1200 60"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0 32 C 100 8, 200 8, 300 32 S 500 56, 600 32 S 800 8, 900 32 S 1100 56, 1200 32 L1200 60 L0 60 Z"
-            fill="currentColor"
-          />
-        </svg>
-      </div>
-    </div>
+    <motion.div
+      className="w-full overflow-hidden rounded-2xl"
+      animate={{ y: [0, -4, 0] }}
+      transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+    >
+      <img
+        src="./sleeping-dog.png"
+        alt="파도 위에서 자고 있는 강아지"
+        className="w-full select-none"
+        draggable="false"
+        onError={(e) => {
+          e.currentTarget.style.display = 'none'
+        }}
+      />
+    </motion.div>
   )
 }

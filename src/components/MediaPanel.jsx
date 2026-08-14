@@ -47,10 +47,10 @@ function TabButton({ tab, active, count, onClick }) {
 
 function EmptyHint({ title, body, actionLabel, onAction, secondary }) {
   return (
-    <div className="flex flex-col items-center gap-3 px-4 pb-6 pt-4 text-center">
+    <div className="flex flex-col items-center gap-3 pb-6 pt-2 text-center">
       {/* 목록이 비었으니 마스코트도 파도 위에서 한숨 자고 있다 */}
       <SleepingMascot />
-      <div>
+      <div className="px-4">
         <p className="text-sm font-bold text-ink">{title}</p>
         <p className="mt-1 text-xs text-ink-soft">{body}</p>
       </div>

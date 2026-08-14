@@ -21,6 +21,7 @@ const tmp = join(root, '.asset-tmp')
 
 const ICON_SRC = join(root, 'assets/icon-source.png')
 const SPLASH_SRC = join(root, 'assets/splash-source.png')
+const MOCKUP_SRC = join(root, 'assets/mockup.png')
 
 // 런처 아이콘의 해상도별 크기 (dp 기준 48 × 배율)
 const LAUNCHER_SIZES = {
@@ -224,6 +225,33 @@ console.log('앱 화면에 쓸 마스코트 오려내는 중…')
   sh('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '82', squarePath, '--out', join(root, 'public/mascot.jpg')])
   rmSync(join(root, 'public/mascot.png'), { force: true })
   console.log(`  public/mascot.jpg ${size}×${size}`)
+}
+
+console.log('시안에서 자는 강아지 장면 잘라내는 중…')
+{
+  // 손으로 그린 시안 아래쪽에 파도 위에서 자는 강아지가 이미 잘 그려져 있다.
+  // 그 부분만 오려내 목록이 비었을 때 쓴다.
+  const src = readPng(MOCKUP_SRC)
+  const box = { x: 10, y: 1048, w: 608, h: 174 }
+  const out = new PNG({ width: box.w, height: box.h })
+
+  // 위쪽은 서서히 투명해지게 한다. 그래야 네모난 그림 덩어리로 보이지 않고
+  // 패널 배경에 자연스럽게 녹아든다.
+  const fadeUntil = box.h * 0.42
+
+  for (let y = 0; y < box.h; y += 1) {
+    const fade = y >= fadeUntil ? 1 : y / fadeUntil
+    for (let x = 0; x < box.w; x += 1) {
+      const from = (src.width * (box.y + y) + (box.x + x)) << 2
+      const to = (box.w * y + x) << 2
+      out.data[to] = src.data[from]
+      out.data[to + 1] = src.data[from + 1]
+      out.data[to + 2] = src.data[from + 2]
+      out.data[to + 3] = Math.round(src.data[from + 3] * fade)
+    }
+  }
+  writePng(out, join(root, 'public/sleeping-dog.png'))
+  console.log(`  public/sleeping-dog.png ${box.w}×${box.h}`)
 }
 
 const iconEdge = cornerColor(ICON_SRC)
