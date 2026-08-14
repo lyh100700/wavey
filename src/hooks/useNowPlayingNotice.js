@@ -7,31 +7,49 @@ import { useEffect, useRef, useState } from 'react'
  * "지금 일하는 중"이라고 알림을 하나 띄워 둬야 하는데(포그라운드 서비스),
  * 그 알림이 곧 사용자가 보게 되는 상단 아이콘과 재생 버튼이 된다.
  *
+ * ── 알림을 함부로 갱신하면 안 되는 이유 ──
+ *
+ * 쓰고 있는 플러그인의 updateForegroundService는 안드로이드와의 약속을 어긴다.
+ * startForegroundService()를 부르면 "곧 startForeground()를 부르겠다"는 약속이
+ * 성립하고, 5초 안에 지키지 않으면 시스템이 서비스를 죽인다. 그런데 갱신 경로는
+ * 알림만 다시 그리고 startForeground()를 부르지 않는다.
+ *
+ * 그래서 곡이 바뀔 때마다 갱신하면 두어 곡 만에 서비스가 죽고, 앱이 평범한
+ * 백그라운드 앱으로 강등돼 재생이 멈춘다.
+ *
+ * 대신 이렇게 한다.
+ *   - 갱신 경로는 아예 쓰지 않는다. 시작 경로만 쓴다 (이쪽은 약속을 지킨다).
+ *   - 시작은 앱이 화면에 보일 때만 한다. 안드로이드 12부터는 백그라운드에서
+ *     포그라운드 서비스를 새로 띄우는 것 자체가 막혀 있다.
+ *   - 앱이 뒤에 있는 동안에는 알림에 손대지 않는다. 곡 제목은 잠시 옛것으로
+ *     남지만, 재생이 끊기지 않는 쪽이 훨씬 중요하다.
+ *   - 앱으로 돌아오면 그때 최신 곡으로 새로 고친다.
+ *
  * 안드로이드 APK로 실행할 때만 동작한다. 브라우저에서는 아무 일도 하지 않는다.
  */
 
 const CHANNEL_ID = 'wavey-playback'
 const NOTIFICATION_ID = 1
 
-// 알림의 버튼들. 순서가 곧 화면에 보이는 순서다.
 const BUTTON_PREV = 1
 const BUTTON_TOGGLE = 2
 const BUTTON_NEXT = 3
 
 const IMPORTANCE_LOW = 2 // 조용히 뜨되 상태바에는 남는다
+const SERVICE_TYPE_MEDIA_PLAYBACK = 2 // 안드로이드의 '미디어 재생' 종류 번호
 
-// 안드로이드의 '미디어 재생' 서비스 종류 번호.
-// 플러그인의 타입 목록에는 없지만 값 자체는 그대로 전달되므로 직접 넘긴다.
-const SERVICE_TYPE_MEDIA_PLAYBACK = 2
+// 곡이 넘어가는 순간 재생 상태가 잠깐 멈춤으로 튄다. 그대로 반영하면 알림이
+// 깜빡이고 서비스를 두 번 건드리게 되므로, 잠시 기다렸다 확정된 상태만 그린다.
+const SETTLE_MS = 600
 
-/** 안드로이드 앱으로 실행 중일 때만 플러그인을 불러온다. */
-async function loadPlugin() {
+async function loadPlugins() {
   const { Capacitor } = await import('@capacitor/core')
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return null
-  const { ForegroundService } = await import(
-    '@capawesome-team/capacitor-android-foreground-service'
-  )
-  return ForegroundService
+  const [{ ForegroundService }, { App }] = await Promise.all([
+    import('@capawesome-team/capacitor-android-foreground-service'),
+    import('@capacitor/app'),
+  ])
+  return { ForegroundService, App }
 }
 
 export default function useNowPlayingNotice({
@@ -41,37 +59,37 @@ export default function useNowPlayingNotice({
   onTogglePlay,
   onNext,
   onPrev,
-  onProblem, // 알림을 못 띄웠을 때 사용자에게 알릴 통로
+  onProblem,
 }) {
-  const pluginRef = useRef(null)
+  const serviceRef = useRef(null)
   const runningRef = useRef(false)
-  // ref가 아니라 state여야 한다. 준비가 끝난 순간 아래 효과가 다시 돌아야 하기 때문이다.
+  const timerRef = useRef(null)
   const [ready, setReady] = useState(false)
+  // 앱이 화면에 보이는 중인지. 뒤에 있는 동안에는 알림에 손대지 않는다.
+  const [appActive, setAppActive] = useState(true)
 
-  // 알림 버튼은 앱이 뒤에 있을 때 눌리므로, 늘 최신 동작을 보도록 담아 둔다.
   const actions = useRef({})
   actions.current = { onTogglePlay, onNext, onPrev, onProblem }
 
-  // 준비: 알림 채널을 만들고, 버튼 눌림을 받아 둔다.
   useEffect(() => {
     let cancelled = false
-    let handle = null
+    const handles = []
 
     const setup = async () => {
-      const plugin = await loadPlugin()
-      if (!plugin || cancelled) return
-      pluginRef.current = plugin
+      const plugins = await loadPlugins()
+      if (!plugins || cancelled) return
+      const { ForegroundService, App } = plugins
+      serviceRef.current = ForegroundService
 
-      await plugin.createNotificationChannel({
+      await ForegroundService.createNotificationChannel({
         id: CHANNEL_ID,
         name: '재생 중',
         description: 'Wavey가 재생 중일 때 상단에 남는 알림이에요',
         importance: IMPORTANCE_LOW,
       })
 
-      // 안드로이드 13부터는 알림을 띄우려면 허락을 받아야 한다.
-      let status = await plugin.checkPermissions()
-      if (status?.display !== 'granted') status = await plugin.requestPermissions()
+      let status = await ForegroundService.checkPermissions()
+      if (status?.display !== 'granted') status = await ForegroundService.requestPermissions()
       if (status?.display !== 'granted') {
         actions.current.onProblem?.(
           '알림 권한이 꺼져 있어요. 설정 → 앱 → Wavey → 알림에서 켜 주세요',
@@ -79,14 +97,19 @@ export default function useNowPlayingNotice({
         return
       }
 
-      handle = await plugin.addListener('buttonClicked', ({ buttonId }) => {
-        if (buttonId === BUTTON_PREV) actions.current.onPrev?.()
-        else if (buttonId === BUTTON_TOGGLE) actions.current.onTogglePlay?.()
-        else if (buttonId === BUTTON_NEXT) actions.current.onNext?.()
-      })
+      handles.push(
+        await ForegroundService.addListener('buttonClicked', ({ buttonId }) => {
+          if (buttonId === BUTTON_PREV) actions.current.onPrev?.()
+          else if (buttonId === BUTTON_TOGGLE) actions.current.onTogglePlay?.()
+          else if (buttonId === BUTTON_NEXT) actions.current.onNext?.()
+        }),
+      )
+      handles.push(
+        await App.addListener('appStateChange', ({ isActive }) => setAppActive(isActive)),
+      )
 
       if (cancelled) {
-        handle?.remove?.()
+        handles.forEach((h) => h?.remove?.())
         return
       }
       setReady(true)
@@ -94,59 +117,59 @@ export default function useNowPlayingNotice({
 
     setup().catch((err) => {
       if (cancelled) return
-      // 조용히 삼키면 왜 안 되는지 알 길이 없다. 사용자에게 보여 준다.
       actions.current.onProblem?.(`상단 알림 준비 실패: ${err?.message ?? err}`)
     })
 
     return () => {
       cancelled = true
-      handle?.remove?.()
-      // 앱을 닫을 때 알림도 함께 걷어낸다.
-      if (runningRef.current) pluginRef.current?.stopForegroundService?.().catch(() => {})
+      handles.forEach((h) => h?.remove?.())
+      clearTimeout(timerRef.current)
+      if (runningRef.current) serviceRef.current?.stopForegroundService?.().catch(() => {})
       runningRef.current = false
     }
   }, [])
 
-  // 곡이나 재생 상태가 바뀔 때마다 알림 내용을 갈아 끼운다.
   useEffect(() => {
-    const plugin = pluginRef.current
-    if (!plugin || !ready) return
+    const service = serviceRef.current
+    if (!service || !ready) return undefined
 
-    // 틀 것이 없으면 알림도 치운다.
+    // 틀 것이 없으면 알림을 치운다. 멈추는 건 뒤에 있어도 허용된다.
     if (!track) {
       if (runningRef.current) {
-        plugin.stopForegroundService().catch(() => {})
+        service.stopForegroundService().catch(() => {})
         runningRef.current = false
       }
-      return
+      return undefined
     }
 
-    const options = {
-      id: NOTIFICATION_ID,
-      title: track.title,
-      body: `${playing ? '재생 중' : '일시정지'} · ${sourceLabel}`,
-      smallIcon: 'ic_stat_wavey',
-      silent: true,
-      notificationChannelId: CHANNEL_ID,
-      serviceType: SERVICE_TYPE_MEDIA_PLAYBACK,
-      buttons: [
-        { id: BUTTON_PREV, title: '이전' },
-        { id: BUTTON_TOGGLE, title: playing ? '일시정지' : '재생' },
-        { id: BUTTON_NEXT, title: '다음' },
-      ],
-    }
+    // 앱이 뒤에 있으면 그대로 둔다. 여기서 건드리면 서비스가 죽어 재생이 끊긴다.
+    if (!appActive) return undefined
 
-    const call = runningRef.current
-      ? plugin.updateForegroundService(options)
-      : plugin.startForegroundService(options)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      service
+        .startForegroundService({
+          id: NOTIFICATION_ID,
+          title: track.title,
+          body: `${playing ? '재생 중' : '일시정지'} · ${sourceLabel}`,
+          smallIcon: 'ic_stat_wavey',
+          silent: true,
+          notificationChannelId: CHANNEL_ID,
+          serviceType: SERVICE_TYPE_MEDIA_PLAYBACK,
+          buttons: [
+            { id: BUTTON_PREV, title: '이전' },
+            { id: BUTTON_TOGGLE, title: playing ? '일시정지' : '재생' },
+            { id: BUTTON_NEXT, title: '다음' },
+          ],
+        })
+        .then(() => {
+          runningRef.current = true
+        })
+        .catch((err) => {
+          actions.current.onProblem?.(`상단 알림 실패: ${err?.message ?? err}`)
+        })
+    }, SETTLE_MS)
 
-    call
-      .then(() => {
-        runningRef.current = true
-      })
-      .catch((err) => {
-        runningRef.current = false
-        actions.current.onProblem?.(`상단 알림 실패: ${err?.message ?? err}`)
-      })
-  }, [ready, track?.id, track?.title, playing, sourceLabel])
+    return () => clearTimeout(timerRef.current)
+  }, [ready, appActive, track?.id, track?.title, playing, sourceLabel])
 }
