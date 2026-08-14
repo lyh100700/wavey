@@ -8,5 +8,10 @@
     <!-- 웹뷰 뒤에 깔리는 바탕색. 앱을 열 때 흰 화면이 번쩍이지 않게 한다. -->
     <color name="waveyBackground">#F4F9FC</color>
 
-    <color name="ic_launcher_background">#70D6FF</color>
+    <!-- 아이콘 그림의 가장자리에서 뽑은 색. 적응형 아이콘의 바탕으로 쓰면
+         런처가 어떤 모양으로 오려내도 그림과 자연스럽게 이어진다. -->
+    <color name="ic_launcher_background">#A3D9DA</color>
+
+    <!-- 스플래시 그림 위쪽에서 뽑은 색. 그림이 뜨기 전 화면을 이 색으로 채운다. -->
+    <color name="splashBackground">#A1E8E0</color>
 </resources>

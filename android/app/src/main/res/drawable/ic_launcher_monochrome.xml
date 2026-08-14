@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  안드로이드 13의 '테마 아이콘'용 한 가지 색 아이콘.
+  홈 화면 테마를 켜면 강아지 그림 대신 이 물결이 배경색에 맞춰 그려진다.
+  사진은 한 가지 색으로 바꿀 수 없어서 물결만 따로 그려 둔다.
+-->
 <vector
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -6,10 +11,6 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!--
-      Wavey의 잔물결 세 겹.
-      적응형 아이콘의 안전 영역(가운데 72x72) 안에 들어오도록 그렸다.
-    -->
     <group android:translateY="-2">
         <path
             android:pathData="M27.3,40 c5.9,-6.5 11.9,-6.5 17.8,0 s11.9,6.5 17.8,0 s11.9,-6.5 17.8,0"

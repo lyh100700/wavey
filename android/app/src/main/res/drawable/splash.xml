@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  앱을 켤 때 웹 화면이 준비될 때까지 보이는 그림.
+  그림 자체는 화면 비율이 제각각인 폰에 딱 맞을 수 없으므로,
+  바탕을 스플래시 색으로 채우고 그 위에 그림을 가운데 얹는다.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splashBackground" />
+    <item>
+        <bitmap
+            android:src="@drawable/splash_image"
+            android:gravity="center" />
+    </item>
+</layer-list>
