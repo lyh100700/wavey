@@ -507,6 +507,7 @@ export default function App() {
     onTogglePlay: togglePlay,
     onNext: next,
     onPrev: prev,
+    onProblem: showToast,
   })
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */
@@ -633,6 +634,10 @@ export default function App() {
         <h1 className="text-lg font-black tracking-tight text-ink">
           Wavey <span className="text-xs font-bold text-ink-soft">웨이비</span>
         </h1>
+        {/* 지금 깔린 게 어느 빌드인지 — APK를 새로 설치했는지 확인할 때 쓴다 */}
+        <span className="ml-auto rounded-full bg-white/60 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-soft">
+          {__BUILD_ID__}
+        </span>
       </header>
 
       {/* ── 메인: 플레이어 ───────────────────────────────────── */}
