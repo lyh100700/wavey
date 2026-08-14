@@ -1,1 +1,71 @@
+name: Wavey APK 빌드
 
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Actions 탭에서 손으로도 돌릴 수 있게
+
+permissions:
+  contents: write # 최신 빌드를 릴리스로 올리기 위해 필요
+
+jobs:
+  build:
+    name: 안드로이드 디버그 APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@v4
+
+      - name: Node.js 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 웹 앱 빌드
+        run: npm run build
+
+      - name: JDK 준비
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 안드로이드 SDK 준비
+        uses: android-actions/setup-android@v3
+
+      - name: 웹 빌드 결과를 안드로이드로 복사
+        run: npx cap sync android
+
+      - name: APK 빌드
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: APK 이름 정리
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk wavey.apk
+
+      # 빌드할 때마다 남는 사본 (GitHub 로그인 후 Actions 탭에서 받을 수 있음)
+      - name: 아티팩트로 올리기
+        uses: actions/upload-artifact@v4
+        with:
+          name: wavey-apk
+          path: wavey.apk
+          retention-days: 30
+
+      # 폰에서 바로 받을 수 있는 고정 주소를 만들기 위한 릴리스
+      - name: 최신 릴리스 갱신
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest wavey.apk \
+            --title "Wavey 최신 빌드" \
+            --notes "커밋 ${GITHUB_SHA:0:7} 기준으로 자동 빌드된 APK입니다. 폰 브라우저로 이 페이지를 열어 wavey.apk를 받아 설치하세요." \
+            --prerelease
