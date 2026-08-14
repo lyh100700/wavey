@@ -13,7 +13,7 @@ import WaveDisc from './WaveDisc.jsx'
  * 위치는 그대로 두고 화면에 보이는 모습만 바꾼다.
  */
 export default function Stage({
-  mediaRef,
+  videoRef,
   track,
   playing,
   currentTime,
@@ -61,7 +61,7 @@ export default function Stage({
 
         {/* 오디오·영상 공용 엘리먼트 (음악 모드에서는 숨긴 채로 소리만 낸다) */}
         <video
-          ref={mediaRef}
+          ref={videoRef}
           playsInline
           preload="metadata"
           onClick={isVideo ? onTogglePlay : undefined}

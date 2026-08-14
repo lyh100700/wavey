@@ -53,8 +53,11 @@ export function makeId() {
   return `track-${seq}-${Math.floor(performance.now())}`
 }
 
-/** File 객체들을 플레이리스트 트랙으로 변환한다. 재생 못 하는 파일은 걸러낸다. */
-export function filesToTracks(fileList) {
+/**
+ * File 객체들을 플레이리스트 트랙으로 변환한다. 재생 못 하는 파일은 걸러낸다.
+ * startOrder는 목록에서의 자리를 매기는 시작 번호다 (저장했다 불러올 때 순서 유지용).
+ */
+export function filesToTracks(fileList, startOrder = 0) {
   const accepted = []
   const rejected = []
   for (const file of Array.from(fileList ?? [])) {
@@ -65,15 +68,48 @@ export function filesToTracks(fileList) {
     }
     accepted.push({
       id: makeId(),
+      order: startOrder + accepted.length,
       kind,
       title: prettyName(file.name),
       fileName: file.name,
       size: file.size,
       url: URL.createObjectURL(file),
       duration: 0,
+      // 폴더로 고른 경우에만 채워진다. 예: "여름 플레이리스트/밤바다.mp3"
+      path: file.webkitRelativePath || '',
+      // 저장소에 넣을 때 필요하다. blob 주소와 달리 앱을 닫아도 살아남는다.
+      file,
     })
   }
   return { accepted, rejected }
+}
+
+/** 목록에서 가장 큰 자리 번호. 새 곡을 뒤에 붙일 때 쓴다. */
+export function nextOrder(tracks) {
+  return tracks.reduce((max, t) => Math.max(max, t.order ?? 0), -1) + 1
+}
+
+/** 폴더로 고른 파일들에서 최상위 폴더 이름을 뽑아낸다. */
+export function folderNameOf(fileList) {
+  for (const file of Array.from(fileList ?? [])) {
+    const path = file.webkitRelativePath
+    if (path && path.includes('/')) return path.split('/')[0]
+  }
+  return ''
+}
+
+/** 트랙이 폴더 안에서 어느 하위 경로에 있는지 (최상위 폴더 이름은 뺀다). */
+export function subPathOf(track) {
+  if (!track?.path) return ''
+  const parts = track.path.split('/')
+  // 첫 조각은 폴더 이름, 마지막 조각은 파일 이름이라 가운데만 남긴다.
+  return parts.slice(1, -1).join(' / ')
+}
+
+/** 이 브라우저가 폴더 통째로 고르기를 지원하는지. */
+export function supportsFolderPick() {
+  if (typeof document === 'undefined') return false
+  return 'webkitdirectory' in document.createElement('input')
 }
 
 /** 트랙마다 고정된 파스텔 색 한 쌍을 뽑아 준다 (제목 기반 해시). */

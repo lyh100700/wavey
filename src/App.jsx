@@ -1,26 +1,47 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Music, Video } from 'lucide-react'
+import { FolderOpen, Music, Video } from 'lucide-react'
 import Controls from './components/Controls.jsx'
 import DropOverlay from './components/DropOverlay.jsx'
 import EmptyState from './components/EmptyState.jsx'
-import Playlist from './components/Playlist.jsx'
+import MediaPanel from './components/MediaPanel.jsx'
 import SeekBar from './components/SeekBar.jsx'
 import Stage from './components/Stage.jsx'
 import WaveGlyph from './components/WaveGlyph.jsx'
-import { filesToTracks } from './lib/media.js'
+import useMediaSession from './hooks/useMediaSession.js'
+import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
+import {
+  clearSource,
+  deleteTrack,
+  loadLibrary,
+  saveMeta,
+  saveTracks,
+  updateTrack,
+} from './lib/storage.js'
 
 const ACCEPT = 'audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.webm,.mov,.m4v,.mkv'
 
 export default function App() {
-  const mediaRef = useRef(null)
+  // 오디오와 비디오를 각각 제 엘리먼트로 재생한다.
+  // 음악까지 <video>로 틀면 안드로이드가 '영상'으로 보고 화면이 꺼질 때 멈춰 버린다.
+  // 둘 다 계속 붙여 두기 때문에 모드를 오가도 다시 만들어지지 않는다.
+  const audioRef = useRef(null)
+  const videoRef = useRef(null)
   const fileInputRef = useRef(null)
+  const folderInputRef = useRef(null)
   const scrubbing = useRef(false)
   // 다음 트랙이 로드됐을 때 이어서 재생할지 — 곡 넘김과 사용자의 직접 선택을 구분한다.
   const resumeOnLoad = useRef(false)
 
-  const [tracks, setTracks] = useState([])
+  // 재생 대상은 두 갈래다. 직접 담은 플레이리스트와, 폴더째로 불러온 목록.
+  const [playlistTracks, setPlaylistTracks] = useState([])
+  const [folderTracks, setFolderTracks] = useState([])
+  const [folderName, setFolderName] = useState('')
+
+  const [activeTab, setActiveTab] = useState('playlist') // 지금 보고 있는 탭
+  const [playingSource, setPlayingSource] = useState('playlist') // 실제 재생 중인 큐
   const [currentId, setCurrentId] = useState(null)
+
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -32,16 +53,27 @@ export default function App() {
   const [dragging, setDragging] = useState(false)
   const [toast, setToast] = useState(null)
 
+  // 저장소에서 되살리는 동안에는 화면을 잠깐 비워 둔다.
+  const [restoring, setRestoring] = useState(true)
+  // 되살리기가 끝나기 전에는 설정을 저장하지 않는다 (빈 값으로 덮어쓰는 사고 방지).
+  const restored = useRef(false)
+
+  const folderPickSupported = useMemo(() => supportsFolderPick(), [])
+
+  // 지금 재생 중인 큐. 다음 곡·이전 곡은 모두 이 목록 안에서 움직인다.
+  const queue = playingSource === 'playlist' ? playlistTracks : folderTracks
   const current = useMemo(
-    () => tracks.find((t) => t.id === currentId) ?? null,
-    [tracks, currentId],
+    () => queue.find((t) => t.id === currentId) ?? null,
+    [queue, currentId],
   )
 
-  const visibleTracks = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return tracks
-    return tracks.filter((t) => t.title.toLowerCase().includes(q))
-  }, [tracks, query])
+  // 지금 소리를 내고 있는 엘리먼트. 곡 종류에 따라 둘 중 하나가 쓰인다.
+  const activeEl = useCallback(
+    () => (current?.kind === 'video' ? videoRef.current : audioRef.current),
+    [current?.kind],
+  )
+
+  const hasAnything = playlistTracks.length > 0 || folderTracks.length > 0
 
   const showToast = useCallback((message) => {
     setToast({ id: Math.random(), message })
@@ -53,31 +85,162 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [toast])
 
+  /* ── 저장소에서 되살리기 ───────────────────────────────────── */
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadLibrary().then((saved) => {
+      if (cancelled) {
+        // 화면이 이미 사라졌다면 만들어 둔 주소를 도로 반납한다.
+        ;[...saved.playlist, ...saved.folder].forEach((t) => URL.revokeObjectURL(t.url))
+        return
+      }
+
+      setPlaylistTracks(saved.playlist)
+      setFolderTracks(saved.folder)
+      setFolderName(saved.meta.folderName ?? '')
+
+      const prefs = saved.meta.playback ?? {}
+      if (typeof prefs.volume === 'number') setVolume(prefs.volume)
+      if (typeof prefs.muted === 'boolean') setMuted(prefs.muted)
+      if (typeof prefs.shuffle === 'boolean') setShuffle(prefs.shuffle)
+      if (prefs.repeat) setRepeat(prefs.repeat)
+      if (prefs.activeTab) setActiveTab(prefs.activeTab)
+
+      // 마지막에 듣던 곡을 그대로 올려 둔다. 재생은 사용자가 직접 시작한다.
+      const lastSource = prefs.playingSource === 'folder' ? 'folder' : 'playlist'
+      const lastQueue = lastSource === 'folder' ? saved.folder : saved.playlist
+      if (prefs.currentId && lastQueue.some((t) => t.id === prefs.currentId)) {
+        setPlayingSource(lastSource)
+        setCurrentId(prefs.currentId)
+      } else if (lastQueue.length > 0) {
+        setPlayingSource(lastSource)
+        setCurrentId(lastQueue[0].id)
+      }
+
+      resumeOnLoad.current = false
+      restored.current = true
+      setRestoring(false)
+
+      const total = saved.playlist.length + saved.folder.length
+      if (total > 0) {
+        setToast({ id: Math.random(), message: `저장해 둔 ${total}개를 불러왔어요 🌊` })
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 재생 설정은 바뀔 때마다 조용히 저장해 둔다.
+  useEffect(() => {
+    if (!restored.current) return
+    saveMeta('playback', {
+      currentId,
+      playingSource,
+      activeTab,
+      volume,
+      muted,
+      shuffle,
+      repeat,
+    })
+  }, [currentId, playingSource, activeTab, volume, muted, shuffle, repeat])
+
   /* ── 파일 받기 ─────────────────────────────────────────────── */
 
-  const addFiles = useCallback(
+  const addToPlaylist = useCallback(
     (fileList) => {
-      const { accepted, rejected } = filesToTracks(fileList)
+      const { accepted, rejected } = filesToTracks(fileList, nextOrder(playlistTracks))
 
       if (accepted.length > 0) {
-        setTracks((prev) => [...prev, ...accepted])
-        setCurrentId((prev) => prev ?? accepted[0].id)
+        setPlaylistTracks((prev) => [...prev, ...accepted])
+        setActiveTab('playlist')
+        // 아직 아무것도 안 고른 상태라면 첫 곡을 올려 둔다 (재생은 사용자가 시작).
+        setCurrentId((prev) => {
+          if (prev) return prev
+          setPlayingSource('playlist')
+          return accepted[0].id
+        })
         showToast(`${accepted.length}개를 파도에 띄웠어요 🌊`)
+
+        // 다음에 앱을 열어도 남아 있도록 저장한다.
+        saveTracks(accepted, 'playlist').then((res) => {
+          if (!res.ok) {
+            showToast(
+              res.full
+                ? '저장 공간이 가득 찼어요. 안 듣는 곡을 지워 주세요'
+                : '이번 곡들은 저장하지 못했어요 (재생은 됩니다)',
+            )
+          }
+        })
       }
       if (rejected.length > 0) {
         showToast(`재생할 수 없는 파일 ${rejected.length}개는 건너뛰었어요`)
       }
     },
-    [showToast],
+    [playlistTracks, showToast],
   )
 
-  const openPicker = useCallback(() => fileInputRef.current?.click(), [])
+  const loadFolder = useCallback(
+    (fileList) => {
+      const { accepted, rejected } = filesToTracks(fileList)
 
-  const handleInputChange = (e) => {
-    addFiles(e.target.files)
-    // 같은 파일을 연달아 고를 수 있도록 값을 비워 둔다.
-    e.target.value = ''
-  }
+      if (accepted.length === 0) {
+        showToast('이 폴더에는 재생할 수 있는 파일이 없어요')
+        return
+      }
+
+      // 이전 폴더의 주소를 정리하고 새 폴더로 갈아 끼운다.
+      setFolderTracks((prev) => {
+        prev.forEach((t) => URL.revokeObjectURL(t.url))
+        return accepted
+      })
+      const name = folderNameOf(fileList)
+      setFolderName(name)
+      setActiveTab('folder')
+      setQuery('')
+
+      // 저장소에서도 이전 폴더를 비우고 새 폴더로 바꿔 둔다.
+      clearSource('folder')
+        .then(() => saveTracks(accepted, 'folder'))
+        .then((res) => {
+          if (!res.ok) {
+            showToast(
+              res.full
+                ? '저장 공간이 가득 찼어요. 폴더가 너무 큰지 확인해 주세요'
+                : '이 폴더는 저장하지 못했어요 (재생은 됩니다)',
+            )
+          }
+        })
+      saveMeta('folderName', name)
+
+      // 폴더를 새로 골랐는데 그 폴더에서 재생 중이었다면 첫 곡으로 되돌린다.
+      if (playingSource === 'folder') {
+        resumeOnLoad.current = false
+        setCurrentId(accepted[0].id)
+      } else if (!currentId) {
+        setPlayingSource('folder')
+        setCurrentId(accepted[0].id)
+      }
+
+      showToast(
+        rejected.length > 0
+          ? `${accepted.length}개를 불러왔어요 (${rejected.length}개는 건너뜀)`
+          : `${accepted.length}개를 불러왔어요 🌊`,
+      )
+    },
+    [playingSource, currentId, showToast],
+  )
+
+  const openFilePicker = useCallback(() => fileInputRef.current?.click(), [])
+  const openFolderPicker = useCallback(() => {
+    // 폴더 고르기를 지원하지 않는 기기(대부분의 안드로이드)에서는
+    // 여러 파일을 한꺼번에 고르는 쪽으로 대신 열어 준다.
+    if (folderPickSupported) folderInputRef.current?.click()
+    else fileInputRef.current?.click()
+  }, [folderPickSupported])
 
   /* ── 화면 어디에 놓아도 받아 주는 드래그 앤 드롭 ──────────── */
 
@@ -104,7 +267,7 @@ export default function App() {
       e.preventDefault()
       depth = 0
       setDragging(false)
-      addFiles(e.dataTransfer.files)
+      addToPlaylist(e.dataTransfer.files)
     }
 
     window.addEventListener('dragenter', onDragEnter)
@@ -117,68 +280,84 @@ export default function App() {
       window.removeEventListener('dragleave', onDragLeave)
       window.removeEventListener('drop', onDrop)
     }
-  }, [addFiles])
+  }, [addToPlaylist])
 
   /* ── 트랙 이동 ─────────────────────────────────────────────── */
 
   const pickNeighbour = useCallback(
     (direction) => {
-      if (tracks.length === 0) return null
-      if (shuffle && tracks.length > 1) {
+      if (queue.length === 0) return null
+      if (shuffle && queue.length > 1) {
         let i = 0
         do {
-          i = Math.floor(Math.random() * tracks.length)
-        } while (tracks[i].id === currentId)
-        return tracks[i].id
+          i = Math.floor(Math.random() * queue.length)
+        } while (queue[i].id === currentId)
+        return queue[i].id
       }
-      const index = tracks.findIndex((t) => t.id === currentId)
-      if (index === -1) return tracks[0].id
-      const next = (index + direction + tracks.length) % tracks.length
-      return tracks[next].id
+      const index = queue.findIndex((t) => t.id === currentId)
+      if (index === -1) return queue[0].id
+      const nextIndex = (index + direction + queue.length) % queue.length
+      return queue[nextIndex].id
     },
-    [tracks, currentId, shuffle],
+    [queue, currentId, shuffle],
   )
 
-  const goTo = useCallback(
-    (id, autoPlay = true) => {
-      if (!id) return
-      resumeOnLoad.current = autoPlay
-      setCurrentId(id)
-    },
-    [],
-  )
+  const selectTrack = useCallback((id, source) => {
+    if (!id) return
+    resumeOnLoad.current = true
+    setPlayingSource(source)
+    setCurrentId(id)
+  }, [])
 
-  const next = useCallback(() => goTo(pickNeighbour(1)), [goTo, pickNeighbour])
+  const next = useCallback(() => {
+    const id = pickNeighbour(1)
+    if (!id) return
+    resumeOnLoad.current = true
+    setCurrentId(id)
+  }, [pickNeighbour])
 
   const prev = useCallback(() => {
-    const el = mediaRef.current
+    const el = activeEl()
     // 3초 넘게 재생했으면 이전 곡 대신 처음으로 되감는다.
     if (el && el.currentTime > 3) {
       el.currentTime = 0
       return
     }
-    goTo(pickNeighbour(-1))
-  }, [goTo, pickNeighbour])
+    const id = pickNeighbour(-1)
+    if (!id) return
+    resumeOnLoad.current = true
+    setCurrentId(id)
+  }, [pickNeighbour, activeEl])
 
   /* ── 재생 제어 ─────────────────────────────────────────────── */
 
-  const togglePlay = useCallback(() => {
-    const el = mediaRef.current
+  const play = useCallback(() => {
+    const el = activeEl()
     if (!el || !current) return
-    if (el.paused) {
-      resumeOnLoad.current = true
-      el.play().catch(() => showToast('재생을 시작하지 못했어요 😢'))
-    } else {
-      el.pause()
-    }
-  }, [current, showToast])
+    resumeOnLoad.current = true
+    el.play().catch(() => showToast('재생을 시작하지 못했어요 😢'))
+  }, [current, activeEl, showToast])
 
-  const seek = useCallback((time) => {
-    const el = mediaRef.current
-    if (!el || !Number.isFinite(time)) return
-    el.currentTime = time
-    setCurrentTime(time)
-  }, [])
+  const pause = useCallback(() => {
+    activeEl()?.pause()
+  }, [activeEl])
+
+  const togglePlay = useCallback(() => {
+    const el = activeEl()
+    if (!el || !current) return
+    if (el.paused) play()
+    else pause()
+  }, [current, activeEl, play, pause])
+
+  const seek = useCallback(
+    (time) => {
+      const el = activeEl()
+      if (!el || !Number.isFinite(time)) return
+      el.currentTime = time
+      setCurrentTime(time)
+    },
+    [activeEl],
+  )
 
   const cycleRepeat = useCallback(() => {
     setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off'))
@@ -189,7 +368,7 @@ export default function App() {
   // 곡이 끝났을 때의 처리는 최신 상태를 봐야 해서 ref에 담아 둔다.
   const handleEndedRef = useRef(() => {})
   handleEndedRef.current = () => {
-    const el = mediaRef.current
+    const el = activeEl()
     if (!el) return
 
     if (repeat === 'one') {
@@ -198,8 +377,8 @@ export default function App() {
       return
     }
 
-    const index = tracks.findIndex((t) => t.id === currentId)
-    const isLast = index === tracks.length - 1
+    const index = queue.findIndex((t) => t.id === currentId)
+    const isLast = index === queue.length - 1
     if (!shuffle && isLast && repeat === 'off') {
       setPlaying(false)
       setCurrentTime(el.duration || 0)
@@ -208,23 +387,29 @@ export default function App() {
     next()
   }
 
+  /** 쓰지 않는 쪽 엘리먼트는 완전히 비워 둔다. 두 곳에서 동시에 소리가 나면 안 된다. */
+  const releaseElement = (el) => {
+    if (!el) return
+    el.pause()
+    el.removeAttribute('src')
+    el.load()
+  }
+
   // 현재 곡의 소스를 물려 준다.
   useEffect(() => {
-    // 목록이 비면 Stage가 통째로 사라져 엘리먼트도 없어진다.
-    // 상태부터 되돌려야 다음에 파일을 넣었을 때 '재생 중'으로 잘못 보이지 않는다.
     if (!current) {
       setPlaying(false)
       setCurrentTime(0)
       setDuration(0)
-      const gone = mediaRef.current
-      if (gone) {
-        gone.removeAttribute('src')
-        gone.load()
-      }
+      releaseElement(audioRef.current)
+      releaseElement(videoRef.current)
       return
     }
 
-    const el = mediaRef.current
+    const isVideo = current.kind === 'video'
+    const el = isVideo ? videoRef.current : audioRef.current
+    // 음악에서 영상으로(또는 반대로) 넘어갈 때 이전 쪽을 확실히 놓아 준다.
+    releaseElement(isVideo ? audioRef.current : videoRef.current)
     if (!el) return
 
     el.src = current.url
@@ -235,18 +420,19 @@ export default function App() {
     if (resumeOnLoad.current) {
       el.play().catch(() => setPlaying(false))
     }
-  }, [current?.id, current?.url]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [current?.id, current?.url, current?.kind]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 볼륨은 엘리먼트가 새로 로드돼도 유지돼야 한다.
+  // 볼륨은 엘리먼트가 새로 로드돼도 유지돼야 한다. 양쪽 모두에 걸어 둔다.
   useEffect(() => {
-    const el = mediaRef.current
-    if (!el) return
-    el.volume = volume
-    el.muted = muted
-  }, [volume, muted, current?.id])
+    for (const el of [audioRef.current, videoRef.current]) {
+      if (!el) continue
+      el.volume = volume
+      el.muted = muted
+    }
+  }, [volume, muted, current?.id, current?.kind])
 
   useEffect(() => {
-    const el = mediaRef.current
+    const el = activeEl()
     if (!el) return undefined
 
     const onTimeUpdate = () => {
@@ -255,10 +441,18 @@ export default function App() {
     const onLoadedMetadata = () => {
       const d = Number.isFinite(el.duration) ? el.duration : 0
       setDuration(d)
-      // 길이를 알아냈으면 플레이리스트에도 적어 둔다.
-      setTracks((prev) =>
-        prev.map((t) => (t.id === currentId && t.duration !== d ? { ...t, duration: d } : t)),
-      )
+
+      // 길이를 알아냈으면 목록과 저장소에도 적어 둔다.
+      // 다음에 앱을 열 때 곡을 재생하기 전부터 길이가 보인다.
+      const write = (list) =>
+        list.map((t) => {
+          if (t.id !== currentId || t.duration === d) return t
+          const updated = { ...t, duration: d }
+          updateTrack(updated, playingSource)
+          return updated
+        })
+      if (playingSource === 'playlist') setPlaylistTracks(write)
+      else setFolderTracks(write)
     }
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
@@ -285,42 +479,74 @@ export default function App() {
       el.removeEventListener('ended', onEnded)
       el.removeEventListener('error', onError)
     }
-  }, [currentId, showToast])
+  }, [currentId, playingSource, activeEl, showToast])
+
+  /* ── 잠금화면 · 알림창 · 이어폰 버튼 ───────────────────────── */
+
+  useMediaSession({
+    track: current,
+    playing,
+    currentTime,
+    duration,
+    sourceLabel: playingSource === 'folder' ? folderName || '폴더' : '플레이리스트',
+    onPlay: play,
+    onPause: pause,
+    onNext: next,
+    onPrev: prev,
+    onSeek: seek,
+  })
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */
 
-  const removeTrack = useCallback(
+  const removeFromPlaylist = useCallback(
     (id) => {
-      const target = tracks.find((t) => t.id === id)
+      const target = playlistTracks.find((t) => t.id === id)
       if (!target) return
 
-      if (id === currentId) {
+      // 지금 재생 중인 곡을 빼는 경우에만 다음 곡으로 넘긴다.
+      if (playingSource === 'playlist' && id === currentId) {
         const neighbour = pickNeighbour(1)
-        // 마지막 한 곡이면 이웃이 자기 자신이므로 빈 상태로 돌아간다.
         setCurrentId(neighbour && neighbour !== id ? neighbour : null)
         resumeOnLoad.current = false
       }
 
-      setTracks((prev) => prev.filter((t) => t.id !== id))
+      setPlaylistTracks((prev) => prev.filter((t) => t.id !== id))
       URL.revokeObjectURL(target.url)
+      deleteTrack(id)
     },
-    [tracks, currentId, pickNeighbour],
+    [playlistTracks, playingSource, currentId, pickNeighbour],
   )
 
-  const clearAll = useCallback(() => {
-    tracks.forEach((t) => URL.revokeObjectURL(t.url))
-    setTracks([])
-    setCurrentId(null)
+  const clearPlaylist = useCallback(() => {
+    playlistTracks.forEach((t) => URL.revokeObjectURL(t.url))
+    setPlaylistTracks([])
     setQuery('')
-    resumeOnLoad.current = false
-  }, [tracks])
+    if (playingSource === 'playlist') {
+      setCurrentId(null)
+      resumeOnLoad.current = false
+    }
+    clearSource('playlist')
+  }, [playlistTracks, playingSource])
+
+  const clearFolder = useCallback(() => {
+    folderTracks.forEach((t) => URL.revokeObjectURL(t.url))
+    setFolderTracks([])
+    setFolderName('')
+    setQuery('')
+    if (playingSource === 'folder') {
+      setCurrentId(null)
+      resumeOnLoad.current = false
+    }
+    clearSource('folder')
+    saveMeta('folderName', '')
+  }, [folderTracks, playingSource])
 
   // 앱이 닫힐 때 남은 Object URL을 정리한다.
-  const tracksRef = useRef(tracks)
-  tracksRef.current = tracks
+  const allTracksRef = useRef([])
+  allTracksRef.current = [...playlistTracks, ...folderTracks]
   useEffect(
     () => () => {
-      tracksRef.current.forEach((t) => URL.revokeObjectURL(t.url))
+      allTracksRef.current.forEach((t) => URL.revokeObjectURL(t.url))
     },
     [],
   )
@@ -351,129 +577,170 @@ export default function App() {
 
   /* ── 화면 ──────────────────────────────────────────────────── */
 
-  const hasTracks = tracks.length > 0
-
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-6 px-4 pb-6 safe-top safe-bottom sm:px-6">
+    <div className="mx-auto flex min-h-full w-full max-w-xl flex-col gap-4 px-4 pb-6 safe-top safe-bottom">
       <input
         ref={fileInputRef}
         type="file"
         accept={ACCEPT}
         multiple
-        onChange={handleInputChange}
+        onChange={(e) => {
+          addToPlaylist(e.target.files)
+          e.target.value = ''
+        }}
         className="hidden"
       />
+      {/* 폴더 통째로 고르기 (지원하는 브라우저에서만 쓰인다) */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        webkitdirectory=""
+        directory=""
+        onChange={(e) => {
+          loadFolder(e.target.files)
+          e.target.value = ''
+        }}
+        className="hidden"
+      />
+
+      {/*
+        음악 전용 엘리먼트. 화면에 보이지 않지만 절대 트리에서 내리지 않는다.
+        <video>가 아니라 <audio>로 틀어야 화면을 꺼도 안드로이드가 재생을 이어 간다.
+      */}
+      <audio ref={audioRef} preload="metadata" className="hidden" />
 
       <DropOverlay show={dragging} />
 
       {/* 머리말 */}
-      <header className="flex items-center gap-3 pt-2">
-        <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-soda to-mint text-white shadow-pastel">
-          <WaveGlyph className="size-6" />
+      <header className="flex items-center gap-2.5 pt-1">
+        <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-soda to-mint text-white shadow-pastel">
+          <WaveGlyph className="size-5" />
         </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-black tracking-tight text-ink">
-            Wavey <span className="text-sm font-bold text-ink-soft">웨이비</span>
-          </h1>
-          <p className="truncate text-xs font-medium text-ink-soft">
-            소리의 파도를 따라 즐기는 나만의 미디어 플레이어
-          </p>
-        </div>
+        <h1 className="text-lg font-black tracking-tight text-ink">
+          Wavey <span className="text-xs font-bold text-ink-soft">웨이비</span>
+        </h1>
       </header>
 
-      <main className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
-        {/* 플레이어 */}
-        <section className="flex flex-col gap-6 rounded-3xl border border-white/70 bg-white/55 p-5 shadow-pastel backdrop-blur-xl sm:p-7">
-          {hasTracks ? (
-            <>
-              <Stage
-                mediaRef={mediaRef}
-                track={current}
-                playing={playing}
-                currentTime={currentTime}
-                duration={duration}
-                onTogglePlay={togglePlay}
-              />
+      {/* ── 메인: 플레이어 ───────────────────────────────────── */}
+      <section className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/55 p-5 shadow-pastel backdrop-blur-xl">
+        {restoring ? (
+          <div className="flex flex-col items-center gap-4 py-16">
+            <motion.div
+              className="droplet size-14 bg-gradient-to-br from-soda/40 to-mint/40"
+              animate={{ y: [0, -10, 0], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <p className="text-sm font-bold text-ink-soft">저장해 둔 파도를 부르는 중…</p>
+          </div>
+        ) : hasAnything ? (
+          <>
+            <Stage
+              videoRef={videoRef}
+              track={current}
+              playing={playing}
+              currentTime={currentTime}
+              duration={duration}
+              onTogglePlay={togglePlay}
+            />
 
-              {/* 지금 재생 중인 곡 */}
-              <div className="text-center">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={current?.id ?? 'none'}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <h2 className="truncate text-lg font-bold text-ink sm:text-xl">
-                      {current?.title ?? '재생할 곡을 골라 주세요'}
-                    </h2>
-                    <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-ink-soft">
-                      {current?.kind === 'video' ? (
-                        <>
-                          <Video className="size-3.5" /> 비디오 모드
-                        </>
-                      ) : (
-                        <>
-                          <Music className="size-3.5" /> 음악 모드
-                        </>
-                      )}
-                    </p>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
+            <div className="text-center">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={current?.id ?? 'none'}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <h2 className="truncate text-lg font-bold text-ink">
+                    {current?.title ?? '재생할 곡을 골라 주세요'}
+                  </h2>
+                  <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-ink-soft">
+                    {current?.kind === 'video' ? (
+                      <>
+                        <Video className="size-3.5" /> 비디오
+                      </>
+                    ) : (
+                      <>
+                        <Music className="size-3.5" /> 음악
+                      </>
+                    )}
+                    <span className="text-ink-soft/50">·</span>
+                    {playingSource === 'folder' ? (
+                      <>
+                        <FolderOpen className="size-3.5" />
+                        {folderName || '폴더'}
+                      </>
+                    ) : (
+                      '플레이리스트'
+                    )}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+            </div>
 
-              <SeekBar
-                currentTime={currentTime}
-                duration={duration}
-                playing={playing}
-                disabled={!current}
-                onSeek={seek}
-                onScrubStart={() => {
-                  scrubbing.current = true
-                }}
-                onScrubEnd={() => {
-                  scrubbing.current = false
-                }}
-              />
+            <SeekBar
+              currentTime={currentTime}
+              duration={duration}
+              playing={playing}
+              disabled={!current}
+              onSeek={seek}
+              onScrubStart={() => {
+                scrubbing.current = true
+              }}
+              onScrubEnd={() => {
+                scrubbing.current = false
+              }}
+            />
 
-              <Controls
-                playing={playing}
-                disabled={!current}
-                shuffle={shuffle}
-                repeat={repeat}
-                volume={volume}
-                muted={muted}
-                onTogglePlay={togglePlay}
-                onPrev={prev}
-                onNext={next}
-                onToggleShuffle={() => setShuffle((s) => !s)}
-                onCycleRepeat={cycleRepeat}
-                onToggleMute={() => setMuted((m) => !m)}
-                onVolumeChange={(v) => {
-                  setVolume(v)
-                  if (v > 0) setMuted(false)
-                }}
-              />
-            </>
-          ) : (
-            <EmptyState onPick={openPicker} />
-          )}
-        </section>
+            <Controls
+              playing={playing}
+              disabled={!current}
+              shuffle={shuffle}
+              repeat={repeat}
+              volume={volume}
+              muted={muted}
+              onTogglePlay={togglePlay}
+              onPrev={prev}
+              onNext={next}
+              onToggleShuffle={() => setShuffle((s) => !s)}
+              onCycleRepeat={cycleRepeat}
+              onToggleMute={() => setMuted((m) => !m)}
+              onVolumeChange={(v) => {
+                setVolume(v)
+                if (v > 0) setMuted(false)
+              }}
+            />
+          </>
+        ) : (
+          <EmptyState onPick={openFilePicker} onPickFolder={openFolderPicker} />
+        )}
+      </section>
 
-        <Playlist
-          tracks={tracks}
-          visibleTracks={visibleTracks}
-          currentId={currentId}
-          playing={playing}
-          query={query}
-          onQueryChange={setQuery}
-          onSelect={(id) => goTo(id, true)}
-          onRemove={removeTrack}
-          onPick={openPicker}
-          onClearAll={clearAll}
-        />
-      </main>
+      {/* ── 아래: 무엇을 재생할지 고르는 곳 ──────────────────── */}
+      <MediaPanel
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab)
+          setQuery('')
+        }}
+        playlistTracks={playlistTracks}
+        folderTracks={folderTracks}
+        folderName={folderName}
+        currentId={currentId}
+        playingSource={playingSource}
+        playing={playing}
+        query={query}
+        onQueryChange={setQuery}
+        onSelect={selectTrack}
+        onRemove={removeFromPlaylist}
+        onPickFiles={openFilePicker}
+        onPickFolder={openFolderPicker}
+        onClearPlaylist={clearPlaylist}
+        onClearFolder={clearFolder}
+        folderPickSupported={folderPickSupported}
+      />
 
       {/* 알림 */}
       <AnimatePresence>
