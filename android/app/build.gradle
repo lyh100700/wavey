@@ -1,14 +1,49 @@
 apply plugin: 'com.android.application'
 
+/*
+ * 서명 열쇠.
+ *
+ * 안드로이드는 서명이 다르면 "다른 앱"으로 보기 때문에, 서명이 바뀌면 기존 앱
+ * 위에 덮어 설치할 수 없다(지웠다 깔아야 하고 저장해 둔 목록도 날아간다).
+ *
+ * 설정해 두지 않으면 빌드 도구가 임시 열쇠를 그때그때 만들어 쓴다. GitHub의
+ * 빌드 서버는 매번 깨끗한 상태로 시작하므로 빌드마다 열쇠가 달라진다.
+ * 그래서 고정된 열쇠를 GitHub 비밀값으로 넣어 두고 여기서 받아 쓴다.
+ *
+ * 열쇠가 없으면(내 컴퓨터에서 그냥 빌드할 때) 예전처럼 임시 열쇠로 넘어간다.
+ */
+def keystorePath = System.getenv("WAVEY_KEYSTORE")
+def keystorePassword = System.getenv("WAVEY_KEYSTORE_PASSWORD")
+def hasKeystore = keystorePath != null && keystorePassword != null && file(keystorePath).exists()
+
+// 버전 번호. 빌드할 때마다 올라가야 폰이 새 버전임을 알아본다.
+def buildNumber = (System.getenv("WAVEY_BUILD_NUMBER") ?: "1") as Integer
+def buildLabelRaw = System.getenv("WAVEY_BUILD_LABEL") ?: "dev"
+// 커밋 번호는 앞 7자리만 쓴다. 앱 화면에 보이는 빌드 번호와 같은 형태다.
+def buildLabel = buildLabelRaw.length() > 7 ? buildLabelRaw.substring(0, 7) : buildLabelRaw
+
 android {
     namespace = "com.wavey.player"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    if (hasKeystore) {
+        signingConfigs {
+            wavey {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias "wavey"
+                keyPassword keystorePassword
+                storeType "PKCS12"
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.wavey.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode buildNumber
+        versionName "1.0.${buildNumber} (${buildLabel})"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -17,9 +52,18 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // 우리 열쇠로 서명해야 다음 빌드를 덮어 설치할 수 있다.
+            if (hasKeystore) {
+                signingConfig signingConfigs.wavey
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasKeystore) {
+                signingConfig signingConfigs.wavey
+            }
         }
     }
 }

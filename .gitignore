@@ -18,3 +18,9 @@ npm-debug.log*
 # 로컬 환경 변수
 .env
 .env.local
+
+# APK 서명 열쇠 — 저장소가 공개라 절대 올리면 안 된다.
+# GitHub 비밀값(Secrets)으로만 보관한다.
+wavey-signing.p12
+.keystore-base64.txt
+.keystore-password.txt
