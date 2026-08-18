@@ -58,11 +58,12 @@ export default function ConfirmDialog({
 
             <div className="mt-6 flex gap-2">
               {cancelLabel && (
+                // 처리 중에도 누를 수 있어야 한다. 무언가 잘못돼 끝나지 않을 때
+                // 빠져나올 길이 없으면 앱이 고장 난 것처럼 느껴진다.
                 <button
                   type="button"
                   onClick={onCancel}
-                  disabled={busy}
-                  className="flex-1 rounded-2xl bg-white/80 py-3 text-sm font-bold text-ink-soft shadow-pastel transition active:scale-95 disabled:opacity-40"
+                  className="flex-1 rounded-2xl bg-white/80 py-3 text-sm font-bold text-ink-soft shadow-pastel transition active:scale-95"
                 >
                   {cancelLabel}
                 </button>

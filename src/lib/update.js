@@ -1,3 +1,4 @@
+import { CapacitorHttp } from '@capacitor/core'
 import { appVersion, isAndroidApp, updaterPlugin } from './native.js'
 import { withTimeout } from './timeout.js'
 
@@ -80,8 +81,7 @@ export async function fetchVersionInfo() {
   const unreadable = { ok: false, reason: '버전 정보를 읽지 못했어요' }
 
   try {
-    if (await isAndroidApp()) {
-      const { CapacitorHttp } = await import('@capacitor/core')
+    if (isAndroidApp()) {
       const response = await CapacitorHttp.get({ url, readTimeout: 15000, connectTimeout: 15000 })
       if (response.status < 200 || response.status >= 300) {
         return { ok: false, reason: `서버가 ${response.status}로 답했어요` }

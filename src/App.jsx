@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Capacitor } from '@capacitor/core'
+import { App as CapacitorApp } from '@capacitor/app'
 import { ArrowDownToLine, Bell, FolderOpen, Music, Video } from 'lucide-react'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
 import DiagnosticsDialog from './components/DiagnosticsDialog.jsx'
@@ -18,6 +20,7 @@ import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
 import { clampSegment, defaultSegment } from './lib/audio-trim.js'
 import { formatDiagnostics, runDiagnostics } from './lib/diagnostics.js'
+import { withTimeout } from './lib/timeout.js'
 import {
   canBeRingtone,
   openSystemSoundSettings,
@@ -40,6 +43,10 @@ import {
   saveTracks,
   updateTrack,
 } from './lib/storage.js'
+
+// 벨소리 설정이 통째로 끝나지 않으면 이만큼 기다렸다 포기한다.
+// 갇힌 화면보다는 "안 됐다"는 말이 낫다.
+const WHOLE_TIMEOUT_MS = 60 * 1000
 
 const ACCEPT = 'audio/*,video/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.mp4,.webm,.mov,.m4v,.mkv'
 
@@ -618,7 +625,7 @@ export default function App() {
   /* ── 벨소리로 설정 ─────────────────────────────────────────── */
 
   useEffect(() => {
-    ringtoneSupported().then(setIsApp)
+    setIsApp(ringtoneSupported())
   }, [])
 
   /** 벨소리 창을 연다. 미리 듣기와 겹치지 않도록 본 재생은 멈춰 둔다. */
@@ -664,12 +671,21 @@ export default function App() {
     setRingtoneBusy(true)
     setRingtoneProgress({ stage: cutting ? 'cutting' : 'sending', percent: 0, doing: '시작' })
 
-    const result = await setAsRingtone(track, {
-      type: ringtoneType,
-      // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
-      segment: cutting ? segment : null,
-      onStage: (stage, percent, doing) => setRingtoneProgress({ stage, percent, doing }),
-    })
+    // 마지막으로 지나온 걸음. 통째로 멈췄을 때 어디였는지 알려 주기 위해 적어 둔다.
+    let lastStep = '시작'
+    const result = await withTimeout(
+      setAsRingtone(track, {
+        type: ringtoneType,
+        // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
+        segment: cutting ? segment : null,
+        onStage: (stage, percent, doing) => {
+          lastStep = doing ?? stage
+          setRingtoneProgress({ stage, percent, doing })
+        },
+      }),
+      WHOLE_TIMEOUT_MS,
+      () => ({ ok: false, message: `"${lastStep}"에서 멈췄어요. 다시 해 보시겠어요?` }),
+    )
 
     setRingtoneBusy(false)
     setRingtoneProgress(null)
@@ -740,10 +756,8 @@ export default function App() {
     let listener = null
 
     const setup = async () => {
-      const { Capacitor } = await import('@capacitor/core')
       if (!Capacitor.isNativePlatform()) return
-      const { App } = await import('@capacitor/app')
-      const handle = await App.addListener('appStateChange', ({ isActive }) => {
+      const handle = await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (!isActive) return
         if (Date.now() - lastChecked.current < RECHECK_MS) return
         runUpdateCheck()

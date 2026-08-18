@@ -1,6 +1,5 @@
-import { isAndroidApp, ringtonePlugin, updaterPlugin } from './native.js'
+import { appVersion, isAndroidApp, ringtonePlugin, updaterPlugin } from './native.js'
 import { withTimeout } from './timeout.js'
-import { appVersion } from './native.js'
 
 /**
  * 안드로이드 기능이 실제로 닿는지 하나씩 두드려 보고 결과를 모은다.
@@ -26,7 +25,7 @@ async function knock(label, run) {
 export async function runDiagnostics() {
   const results = []
 
-  if (!(await isAndroidApp())) {
+  if (!isAndroidApp()) {
     return [{ label: '실행 환경', ok: false, detail: '안드로이드 앱이 아니에요 (브라우저)' }]
   }
 

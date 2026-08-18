@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 
 /**
  * 앱을 벗어나도 상태바에 Wavey를 남겨 둔다.
@@ -43,12 +45,8 @@ const SERVICE_TYPE_MEDIA_PLAYBACK = 2 // 안드로이드의 '미디어 재생' �
 const SETTLE_MS = 600
 
 async function loadPlugins() {
-  const { Capacitor } = await import('@capacitor/core')
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return null
-  const [{ ForegroundService }, { App }] = await Promise.all([
-    import('@capawesome-team/capacitor-android-foreground-service'),
-    import('@capacitor/app'),
-  ])
+  const { ForegroundService } = await import('@capawesome-team/capacitor-android-foreground-service')
   return { ForegroundService, App }
 }
 

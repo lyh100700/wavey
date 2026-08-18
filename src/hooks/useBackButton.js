@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 
 /**
  * 안드로이드의 뒤로가기 버튼(또는 화면 가장자리 쓸어넘기기)을 가로챈다.
@@ -22,9 +24,7 @@ export default function useBackButton(onBack) {
     let listener = null
 
     const setup = async () => {
-      const { Capacitor } = await import('@capacitor/core')
       if (!Capacitor.isNativePlatform()) return
-      const { App } = await import('@capacitor/app')
       const handle = await App.addListener('backButton', () => {
         handler.current?.()
       })
@@ -46,9 +46,7 @@ export default function useBackButton(onBack) {
 /** 앱을 완전히 종료한다. 브라우저에서는 할 수 있는 게 없어 조용히 넘어간다. */
 export async function exitApp() {
   try {
-    const { Capacitor } = await import('@capacitor/core')
     if (!Capacitor.isNativePlatform()) return
-    const { App } = await import('@capacitor/app')
     await App.exitApp()
   } catch {
     // 종료에 실패해도 사용자가 직접 앱을 내리면 된다.

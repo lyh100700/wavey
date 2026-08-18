@@ -47,7 +47,7 @@ export default function RingtoneDialog({
       title="벨소리로 설정"
       description={busy ? note : track ? `"${track.title}"을(를) 어디에 쓸까요?` : ''}
       confirmLabel="설정하기"
-      cancelLabel={busy ? '' : '취소'}
+      cancelLabel="취소"
       busy={busy}
       onConfirm={onConfirm}
       onCancel={onCancel}
