@@ -216,6 +216,29 @@ public class WaveyUpdaterPlugin extends Plugin {
         throw new Exception("주소가 너무 여러 번 바뀌어 포기했어요");
     }
 
+    /**
+     * 브라우저로 주소를 연다.
+     *
+     * 앱 안에서 받아 설치하는 길이 막혔을 때의 우회로다. 릴리스 페이지를
+     * 열어 주면 사용자가 거기서 직접 받아 설치할 수 있다.
+     */
+    @PluginMethod
+    public void openPage(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            call.reject("열 주소가 없어요");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("브라우저를 열지 못했어요");
+        }
+    }
+
     /* ── 설치 ─────────────────────────────────────────────── */
 
     @PluginMethod

@@ -29,6 +29,7 @@ import {
   checkForUpdate,
   downloadAndInstall,
   openInstallSettings,
+  openReleasePage,
 } from './lib/update.js'
 import {
   clearSource,
@@ -717,13 +718,50 @@ export default function App() {
     }
   }, [runUpdateCheck, RECHECK_MS])
 
+  /**
+   * 앱에서 받는 길이 막혔을 때의 우회로.
+   * 브라우저로 릴리스 페이지를 열어 주면 거기서 직접 받아 설치할 수 있다.
+   */
+  const fallbackToBrowser = useCallback(
+    async (why) => {
+      showToast(`${why} 받는 곳을 열어 드릴게요`)
+      if (!(await openReleasePage())) {
+        showToast('브라우저를 열지 못했어요. 릴리스 페이지에서 직접 받아 주세요')
+      }
+      setUpdateInfo(null)
+    },
+    [showToast],
+  )
+
+  /**
+   * 업데이트를 시작한다.
+   *
+   * 여기서 가장 중요한 것은 "아무 말 없이 끝나지 않는 것"이다. 버튼을 눌렀는데
+   * 화면이 그대로면 사용자는 앱이 고장 난 줄 안다. 그래서 어느 길로 빠지든
+   * 반드시 무슨 일이 있었는지 알리고, 막히면 브라우저로 돌려보낸다.
+   */
   const startUpdate = useCallback(async () => {
     if (!updateInfo) return
 
     // 스토어를 거치지 않는 설치라 사용자가 한 번 허용해 줘야 한다.
-    if (!(await canInstall())) {
+    const permission = await canInstall()
+    if (!permission.granted) {
+      if (permission.reason) {
+        // 확인 자체가 안 되는 기기 — 앱에서 설치하는 길이 막혀 있다.
+        await fallbackToBrowser(`설치 권한을 확인하지 못했어요 (${permission.reason}).`)
+        return
+      }
+
       showToast('"이 출처의 앱 설치"를 켜 주세요')
-      if (!(await openInstallSettings())) return
+      const opened = await openInstallSettings()
+      if (!opened.granted) {
+        await fallbackToBrowser(
+          opened.reason
+            ? `설정 화면을 열지 못했어요 (${opened.reason}).`
+            : '설치 권한이 아직 꺼져 있어요.',
+        )
+        return
+      }
     }
 
     setUpdateProgress(0)
@@ -731,12 +769,12 @@ export default function App() {
     setUpdateProgress(null)
 
     if (!result.ok) {
-      showToast(result.message)
+      await fallbackToBrowser(`받지 못했어요 (${result.message}).`)
       return
     }
     // 설치 화면이 떴다. 사용자가 거기서 마무리한다.
     setUpdateInfo(null)
-  }, [updateInfo, showToast])
+  }, [updateInfo, showToast, fallbackToBrowser])
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */
 
@@ -1015,7 +1053,10 @@ export default function App() {
         folderPickSupported={folderPickSupported}
       />
 
-      {/* 알림 */}
+      {/*
+        알림. 안내창(z-50)보다 위에 있어야 한다. 아래에 두면 창이 떠 있는 동안
+        뿌연 배경에 가려, 무엇이 잘못됐는지 알려 주는 말이 사용자에게 닿지 않는다.
+      */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -1024,7 +1065,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            className="pointer-events-none fixed inset-x-0 bottom-6 z-40 mx-auto w-fit max-w-[90vw] rounded-3xl border border-white/70 bg-white/85 px-5 py-3 text-sm font-bold text-ink shadow-pastel-lg backdrop-blur-xl"
+            className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] mx-auto w-fit max-w-[90vw] rounded-3xl border border-white/70 bg-white/85 px-5 py-3 text-sm font-bold text-ink shadow-pastel-lg backdrop-blur-xl"
           >
             {toast.message}
           </motion.div>

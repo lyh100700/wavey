@@ -22,6 +22,8 @@ import { appVersion, isAndroidApp, updaterPlugin } from './native.js'
 const BASE = 'https://github.com/lyh100700/wavey/releases/download/latest'
 export const VERSION_URL = `${BASE}/version.json`
 export const FALLBACK_APK_URL = `${BASE}/wavey.apk`
+// 앱에서 받는 길이 막혔을 때 브라우저로 열어 줄 페이지.
+export const RELEASE_PAGE = 'https://github.com/lyh100700/wavey/releases/tag/latest'
 
 /**
  * 받아 온 쪽지가 쓸 만한지 확인하고 정리한다.
@@ -119,23 +121,43 @@ export async function checkForUpdate() {
 
 /* ── 받기와 설치 ───────────────────────────────────────────── */
 
-/** 이 앱이 앱을 설치해도 되는 상태인지. */
+/**
+ * 이 앱이 앱을 설치해도 되는 상태인지.
+ * 결과: { granted, reason } — 안 되는 이유까지 알려 준다.
+ */
 export async function canInstall() {
   try {
     const plugin = await updaterPlugin()
     const { granted } = await plugin.canInstall()
-    return Boolean(granted)
-  } catch {
-    return false
+    return { granted: Boolean(granted) }
+  } catch (err) {
+    return { granted: false, reason: err?.message || '설치 권한을 확인하지 못했어요' }
   }
 }
 
-/** 설치를 허용하는 설정 화면을 연다. 돌아온 뒤의 상태를 알려 준다. */
+/**
+ * 설치를 허용하는 설정 화면을 연다.
+ * 결과: { granted, reason } — 화면을 못 열었으면 그 이유가 담긴다.
+ */
 export async function openInstallSettings() {
   try {
     const plugin = await updaterPlugin()
     const { granted } = await plugin.openInstallSettings()
-    return Boolean(granted)
+    return { granted: Boolean(granted) }
+  } catch (err) {
+    return { granted: false, reason: err?.message || '설정 화면을 열지 못했어요' }
+  }
+}
+
+/**
+ * 앱에서 받는 길이 막혔을 때의 우회로.
+ * 브라우저로 릴리스 페이지를 열어 주면 거기서 직접 받아 설치할 수 있다.
+ */
+export async function openReleasePage() {
+  try {
+    const plugin = await updaterPlugin()
+    await plugin.openPage({ url: RELEASE_PAGE })
+    return true
   } catch {
     return false
   }
