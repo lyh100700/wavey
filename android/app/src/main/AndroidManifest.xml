@@ -67,6 +67,18 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!--
+      기본 벨소리·알림음·알람음을 바꾸기 위한 권한.
+
+      이걸 적어 두지 않으면 폰 설정의 "시스템 설정 변경" 목록에 이 앱이 아예
+      나타나지 않는다. 사용자가 켜 주고 싶어도 켤 방법이 없고,
+      Settings.System.canWrite()는 언제나 거짓을 돌려준다.
+
+      권한을 쓰는 자바 코드만 만들고 여기에 적는 것을 빠뜨려서, 벨소리가
+      폴더에는 들어가도 기본 소리로는 지정되지 않았다.
+    -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+
+    <!--
       곡을 벨소리 폴더에 넣기 위한 권한.
       안드로이드 10(API 29)부터는 필요 없어져서 그 이하에서만 요청한다.
     -->
