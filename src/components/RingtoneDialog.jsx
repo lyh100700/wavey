@@ -80,14 +80,23 @@ export default function RingtoneDialog({
                   type="button"
                   onClick={() => onTypeChange(option.id)}
                   aria-pressed={selected}
-                  className={`flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold transition active:scale-95 ${
+                  aria-label={`${option.label} — ${option.hint}`}
+                  className={`flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left transition active:scale-95 ${
                     selected
-                      ? 'bg-gradient-to-r from-soda/25 to-mint/20 text-ink ring-1 ring-soda/40'
-                      : 'bg-white/70 text-ink-soft'
+                      ? 'bg-gradient-to-r from-soda/25 to-mint/20 ring-1 ring-soda/40'
+                      : 'bg-white/70'
                   }`}
                 >
-                  {option.label}
-                  {selected && <Check className="size-4 text-soda-deep" />}
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-bold ${selected ? 'text-ink' : 'text-ink-soft'}`}>
+                      {option.label}
+                    </span>
+                    {/* 언제 울리는 소리인지 — 알림음과 알람음을 가르는 유일한 단서다 */}
+                    <span className="mt-0.5 block text-[11px] font-semibold text-ink-soft/80">
+                      {option.hint}
+                    </span>
+                  </span>
+                  {selected && <Check className="size-4 shrink-0 text-soda-deep" />}
                 </button>
               )
             })}

@@ -17,10 +17,16 @@ import { note } from './log.js'
  * 기다리는 동안 멈춘 것처럼 보이지 않게 한다.
  */
 
+/**
+ * 고를 수 있는 소리 종류.
+ *
+ * '알림음'과 '알람음'은 글자가 한 끗 차이라 나란히 두면 같은 말로 보인다.
+ * 언제 울리는 소리인지 함께 적어 둬야 헷갈리지 않는다.
+ */
 export const RINGTONE_TYPES = [
-  { id: 'ringtone', label: '전화 벨소리' },
-  { id: 'notification', label: '알림음' },
-  { id: 'alarm', label: '알람음' },
+  { id: 'ringtone', label: '전화 벨소리', hint: '전화가 걸려 올 때' },
+  { id: 'notification', label: '알림음', hint: '문자 · 메신저가 올 때' },
+  { id: 'alarm', label: '알람음', hint: '맞춰 둔 알람이 울릴 때' },
 ]
 
 // 한 번에 보낼 조각의 크기. 작을수록 통로가 편하고, 멈춰도 어디서 멈췄는지
