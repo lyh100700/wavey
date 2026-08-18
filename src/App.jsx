@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, FolderOpen, Music, Video } from 'lucide-react'
+import { ArrowDownToLine, Bell, FolderOpen, Music, Video } from 'lucide-react'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
 import Controls from './components/Controls.jsx'
 import DropOverlay from './components/DropOverlay.jsx'
@@ -76,8 +76,8 @@ export default function App() {
   // 뒤로가기로 부르는 종료 확인창
   const [askingExit, setAskingExit] = useState(false)
 
-  // 벨소리 설정 — 안드로이드 앱에서만 쓸 수 있다
-  const [ringtoneReady, setRingtoneReady] = useState(false)
+  // 안드로이드 앱으로 돌고 있는지. 벨소리와 업데이트 버튼이 이 값을 본다.
+  const [isApp, setIsApp] = useState(false)
   const [ringtoneFor, setRingtoneFor] = useState(null) // 지정할 곡
   const [ringtoneType, setRingtoneType] = useState('ringtone')
   const [ringtoneBusy, setRingtoneBusy] = useState(false)
@@ -593,7 +593,7 @@ export default function App() {
   /* ── 벨소리로 설정 ─────────────────────────────────────────── */
 
   useEffect(() => {
-    ringtoneSupported().then(setRingtoneReady)
+    ringtoneSupported().then(setIsApp)
   }, [])
 
   /** 벨소리 창을 연다. 미리 듣기와 겹치지 않도록 본 재생은 멈춰 둔다. */
@@ -652,16 +652,70 @@ export default function App() {
 
   /* ── 새 버전 확인 ──────────────────────────────────────────── */
 
-  // 앱을 켤 때 한 번만 확인한다. 인터넷이 없거나 실패하면 조용히 넘어간다.
+  // 앱으로 돌아올 때마다 다시 확인하되, 너무 자주 조르지 않도록 텀을 둔다.
+  const RECHECK_MS = 10 * 60 * 1000
+  const lastChecked = useRef(0)
+
+  /**
+   * 새 버전을 확인한다.
+   *
+   * 저절로 도는 확인은 조용하다 — 인터넷이 없다고 매번 알림이 뜨면 성가시다.
+   * 사용자가 직접 누른 확인은 결과를 반드시 알려 준다. 그러지 않으면
+   * "눌렀는데 아무 일도 안 일어난다"가 되어 버린다.
+   */
+  const runUpdateCheck = useCallback(
+    async ({ manual = false } = {}) => {
+      if (manual) showToast('새 버전을 확인하는 중…')
+      const result = await checkForUpdate()
+      lastChecked.current = Date.now()
+
+      if (result.state === 'update') {
+        setUpdateInfo(result.info)
+        return
+      }
+      if (!manual) return
+
+      if (result.state === 'current') showToast(`이미 최신이에요 (${result.info.versionName})`)
+      else if (result.state === 'unsupported') showToast('앱으로 설치했을 때만 확인할 수 있어요')
+      else showToast(`확인하지 못했어요 — ${result.reason}`)
+    },
+    [showToast],
+  )
+
+  // 앱을 켤 때 한 번.
+  useEffect(() => {
+    runUpdateCheck()
+  }, [runUpdateCheck])
+
+  // 그리고 다른 곳에 갔다 돌아올 때마다.
+  // 안드로이드는 홈으로 나가도 앱을 살려 두기 때문에, 이게 없으면 앱을 완전히
+  // 껐다 켜기 전까지 새 버전이 나온 줄을 영영 모른다.
   useEffect(() => {
     let cancelled = false
-    checkForUpdate().then((info) => {
-      if (!cancelled && info) setUpdateInfo(info)
+    let listener = null
+
+    const setup = async () => {
+      const { Capacitor } = await import('@capacitor/core')
+      if (!Capacitor.isNativePlatform()) return
+      const { App } = await import('@capacitor/app')
+      const handle = await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) return
+        if (Date.now() - lastChecked.current < RECHECK_MS) return
+        runUpdateCheck()
+      })
+      if (cancelled) handle.remove()
+      else listener = handle
+    }
+
+    setup().catch(() => {
+      // 확인을 못 걸어도 앱의 다른 기능에는 지장이 없다.
     })
+
     return () => {
       cancelled = true
+      listener?.remove()
     }
-  }, [])
+  }, [runUpdateCheck, RECHECK_MS])
 
   const startUpdate = useCallback(async () => {
     if (!updateInfo) return
@@ -812,6 +866,19 @@ export default function App() {
         <span className="ml-auto rounded-full bg-white/60 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-soft">
           {__BUILD_ID__}
         </span>
+
+        {/* 손으로 새 버전 확인하기 */}
+        {isApp && (
+          <button
+            type="button"
+            onClick={() => runUpdateCheck({ manual: true })}
+            title="새 버전 확인"
+            aria-label="새 버전 확인"
+            className="grid size-8 shrink-0 place-items-center rounded-xl text-ink-soft transition hover:bg-white/70 hover:text-soda-deep active:scale-90"
+          >
+            <ArrowDownToLine className="size-4" />
+          </button>
+        )}
       </header>
 
       {/* ── 메인: 플레이어 ───────────────────────────────────── */}
@@ -872,7 +939,7 @@ export default function App() {
               </AnimatePresence>
 
               {/* 벨소리로 설정 — 안드로이드 앱에서 음악을 틀고 있을 때만 보인다 */}
-              {ringtoneReady && canBeRingtone(current) && (
+              {isApp && canBeRingtone(current) && (
                 <button
                   type="button"
                   onClick={openRingtoneDialog}

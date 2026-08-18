@@ -62,34 +62,59 @@ export function isNewer(currentCode, info) {
   return info.versionCode > currentCode
 }
 
-/** 버전 쪽지를 받아 온다. 못 받으면 null (인터넷이 없을 수도 있으니 조용히 넘어간다). */
+/**
+ * 버전 쪽지를 받아 온다.
+ *
+ * 실패해도 조용히 넘어가면 "왜 업데이트가 안 뜨지?"를 알아낼 방법이 없다.
+ * 그래서 결과에 이유까지 담아 준다. 자동 확인은 이유를 버리고, 사용자가
+ * 직접 누른 확인만 이유를 보여 준다.
+ *
+ * 결과: { ok: true, info } 또는 { ok: false, reason }
+ */
 export async function fetchVersionInfo() {
   // 중간에 남아 있는 옛 사본을 읽지 않도록 주소 뒤에 무의미한 값을 붙인다.
   const url = `${VERSION_URL}?t=${Date.now()}`
+  const unreadable = { ok: false, reason: '버전 정보를 읽지 못했어요' }
+
   try {
     if (await isAndroidApp()) {
       const { CapacitorHttp } = await import('@capacitor/core')
       const response = await CapacitorHttp.get({ url, readTimeout: 15000, connectTimeout: 15000 })
-      if (response.status < 200 || response.status >= 300) return null
-      return parseVersionInfo(response.data)
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false, reason: `서버가 ${response.status}로 답했어요` }
+      }
+      const info = parseVersionInfo(response.data)
+      return info ? { ok: true, info } : unreadable
     }
+
     const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) return null
-    return parseVersionInfo(await response.text())
-  } catch {
-    return null
+    if (!response.ok) return { ok: false, reason: `서버가 ${response.status}로 답했어요` }
+    const info = parseVersionInfo(await response.text())
+    return info ? { ok: true, info } : unreadable
+  } catch (err) {
+    return { ok: false, reason: err?.message || '인터넷에 닿지 못했어요' }
   }
 }
 
 /**
  * 새 버전이 있는지 확인한다.
- * 결과: null(새 것 없음/확인 실패) 또는 { versionCode, versionName, apkUrl, ... }
+ *
+ * 결과의 state
+ *   'update'      — 새 버전이 있다 (info)
+ *   'current'     — 이미 최신이다 (info)
+ *   'unsupported' — 브라우저라 업데이트할 것이 없다
+ *   'failed'      — 확인하지 못했다 (reason)
  */
 export async function checkForUpdate() {
   const current = await appVersion()
-  if (!current) return null // 브라우저에서는 업데이트할 것이 없다
-  const info = await fetchVersionInfo()
-  return isNewer(current.code, info) ? info : null
+  if (!current) return { state: 'unsupported' }
+
+  const result = await fetchVersionInfo()
+  if (!result.ok) return { state: 'failed', reason: result.reason }
+
+  return isNewer(current.code, result.info)
+    ? { state: 'update', info: result.info, current }
+    : { state: 'current', info: result.info, current }
 }
 
 /* ── 받기와 설치 ───────────────────────────────────────────── */

@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-const { parseVersionInfo, isNewer, FALLBACK_APK_URL } = await import('./update.js')
+const { parseVersionInfo, isNewer, checkForUpdate, FALLBACK_APK_URL } = await import('./update.js')
 
 test('제대로 된 쪽지를 읽어 들인다', () => {
   const info = parseVersionInfo({
@@ -60,4 +60,15 @@ test('버전을 모르면 업데이트를 권하지 않는다', () => {
   assert.equal(isNewer(0, info), false)
   assert.equal(isNewer(NaN, info), false)
   assert.equal(isNewer(5, null), false)
+})
+
+/* ── 확인 결과 알리기 ───────────────────────────────────────
+ *
+ * 조용히 실패하면 "왜 업데이트가 안 뜨지?"를 알아낼 방법이 없다.
+ * 브라우저에서는 확인할 것이 없다고 분명히 답해야 한다.
+ */
+
+test('브라우저에서는 업데이트할 것이 없다고 알린다', async () => {
+  const result = await checkForUpdate()
+  assert.equal(result.state, 'unsupported')
 })
