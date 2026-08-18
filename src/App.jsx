@@ -18,7 +18,6 @@ import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './li
 import { clampSegment, defaultSegment } from './lib/audio-trim.js'
 import {
   canBeRingtone,
-  canChangeSystemSound,
   openSystemSoundSettings,
   RINGTONE_TYPES,
   ringtoneSupported,
@@ -615,23 +614,35 @@ export default function App() {
     [ringtoneFor?.duration],
   )
 
+  /**
+   * 벨소리로 지정한다.
+   *
+   * ── 순서가 중요하다 ──
+   *
+   * 예전에는 '시스템 설정 변경' 권한부터 받으려고 설정 화면을 열고 돌아오기를
+   * 기다렸다. 그런데 안드로이드는 설정 화면에 다녀오는 사이 앱 화면을 통째로
+   * 다시 만들 수 있고, 그러면 "돌아왔다"는 소식이 갈 곳을 잃어 그 기다림이
+   * 영영 끝나지 않는다. 화면에는 엉뚱하게 "오려내는 중"만 계속 떠 있었다.
+   *
+   * 실은 자르고 옮기고 벨소리 폴더에 넣는 일에는 권한이 필요 없다. 권한은
+   * 마지막 '기본 소리로 지정'에만 필요하고, 그건 안드로이드 쪽에서 권한이
+   * 없으면 조용히 건너뛰고 알려 준다(applied: false).
+   *
+   * 그래서 할 일을 먼저 끝낸다. 기본 지정만 못 했으면 그때 설정 화면을
+   * 안내하되, 돌아오기를 기다리지 않는다. 기다릴 이유가 없다.
+   */
   const applyRingtone = useCallback(async () => {
     const track = ringtoneFor
     if (!track) return
-    setRingtoneBusy(true)
-    setRingtoneProgress({ stage: 'cutting', percent: 0 })
 
-    // 기본 벨소리를 바꾸려면 '시스템 설정 변경' 권한이 먼저 필요하다.
-    // 팝업으로 물을 수 없는 종류라 설정 화면으로 보내 드린다.
-    if (!(await canChangeSystemSound())) {
-      showToast('"시스템 설정 변경"을 켜 주세요')
-      await openSystemSoundSettings()
-    }
+    const cutting = useSegment && segment.end > segment.start
+    setRingtoneBusy(true)
+    setRingtoneProgress({ stage: cutting ? 'cutting' : 'sending', percent: 0 })
 
     const result = await setAsRingtone(track, {
       type: ringtoneType,
       // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
-      segment: useSegment && segment.end > segment.start ? segment : null,
+      segment: cutting ? segment : null,
       onStage: (stage, percent) => setRingtoneProgress({ stage, percent }),
     })
 
@@ -644,13 +655,19 @@ export default function App() {
       showToast(result.message)
       return
     }
+
     setRingtoneFor(null)
     const label = RINGTONE_TYPES.find((t) => t.id === ringtoneType)?.label ?? '벨소리'
-    showToast(
-      result.applied
-        ? `${label}(으)로 설정했어요 🔔`
-        : `${label} 목록에 넣었어요. 폰 설정에서 골라 주세요`,
-    )
+
+    if (result.applied) {
+      showToast(`${label}(으)로 설정했어요 🔔`)
+      return
+    }
+
+    // 파일은 들어갔다. 기본 지정만 권한이 없어 못 했다.
+    showToast(`${label} 목록에 넣었어요. "시스템 설정 변경"을 켜 주세요`)
+    // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
+    openSystemSoundSettings()
   }, [ringtoneFor, ringtoneType, useSegment, segment, showToast])
 
   /* ── 새 버전 확인 ──────────────────────────────────────────── */

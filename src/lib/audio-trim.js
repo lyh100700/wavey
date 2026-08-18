@@ -176,10 +176,12 @@ function decodeAudio(bytes) {
  * 실제로 오려내어 WAV 파일을 만든다. 브라우저에서만 동작한다.
  * 결과: Blob (audio/wav)
  */
-export async function cutSegment(file, start, end) {
+export async function cutSegment(file, start, end, onStage) {
   let decoded
   try {
+    onStage?.('reading')
     const bytes = await file.arrayBuffer()
+    onStage?.('cutting')
     decoded = await withTimeout(
       decodeAudio(bytes),
       DECODE_TIMEOUT_MS,

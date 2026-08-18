@@ -75,14 +75,24 @@ export async function canChangeSystemSound() {
   }
 }
 
-/** 권한을 켜는 설정 화면을 연다. 돌아온 뒤의 상태를 알려 준다. */
+/**
+ * 권한을 켜는 설정 화면을 연다.
+ *
+ * 이 약속은 사용자가 설정 화면에서 돌아와야 끝난다. 그런데 안드로이드가 그
+ * 사이 앱 화면을 다시 만들면 "돌아왔다"는 소식이 갈 곳을 잃어 영영 끝나지
+ * 않는다. 그래서 시간 제한을 걸어 둔다 — 화면은 이미 열렸으므로 우리가 더
+ * 기다릴 이유가 없다.
+ */
 export async function openSystemSoundSettings() {
   try {
     const plugin = await ringtonePlugin()
-    const { granted } = await plugin.openWriteSettings()
-    return Boolean(granted)
+    const answered = await Promise.race([
+      plugin.openWriteSettings(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+    ])
+    return Boolean(answered?.granted)
   } catch {
-    // 이 화면이 없는 기기도 있다. 못 열어도 아래 저장은 계속 시도한다.
+    // 이 화면이 없는 기기도 있다. 못 열어도 앱은 계속 돌아가야 한다.
     return false
   }
 }
@@ -122,7 +132,9 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
   if (segment) {
     try {
       onStage?.('cutting', 0)
-      payload = await cutSegment(track.file, segment.start, segment.end)
+      payload = await cutSegment(track.file, segment.start, segment.end, (stage) =>
+        onStage?.(stage, 0),
+      )
       fileName = safeFileName(track, 'wav')
       mimeType = 'audio/wav'
     } catch (err) {

@@ -27,11 +27,15 @@ export default function RingtoneDialog({
   // 곡 길이를 모르면 어디를 자를지 정할 수 없다.
   const knowsLength = Number.isFinite(track?.duration) && track.duration > 0
 
+  // 지금 무슨 일을 하고 있는지 정확히 알려 준다.
+  // 실제와 다른 문구가 떠 있으면, 멈췄을 때 어디서 멈췄는지 알 수가 없다.
+  const NOTES = {
+    reading: '곡을 읽는 중이에요…',
+    cutting: '고른 구간을 오려내는 중이에요…',
+  }
   const note = !busy
     ? ''
-    : progress?.stage === 'cutting'
-      ? '고른 구간을 오려내는 중이에요…'
-      : `폰으로 옮기는 중이에요 ${progress?.percent ?? 0}%`
+    : (NOTES[progress?.stage] ?? `폰으로 옮기는 중이에요 ${progress?.percent ?? 0}%`)
 
   return (
     <ConfirmDialog
