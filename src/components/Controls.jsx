@@ -4,12 +4,17 @@ import {
   Play,
   Repeat,
   Repeat1,
+  RotateCcw,
+  RotateCw,
   Shuffle,
   SkipBack,
   SkipForward,
   Volume2,
   VolumeX,
 } from 'lucide-react'
+
+// 10초 버튼 한 번에 건너뛰는 시간(초).
+const JUMP_SECONDS = 10
 
 function RoundButton({ label, active = false, disabled = false, onClick, children }) {
   return (
@@ -31,7 +36,32 @@ function RoundButton({ label, active = false, disabled = false, onClick, childre
   )
 }
 
-/** 하단 재생 컨트롤 묶음. */
+/** 감기 버튼. 손가락이 닿기 쉽도록 글자까지 넣은 넓은 알약 모양이다. */
+function JumpButton({ label, disabled, onClick, reverse = false, children }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/70 py-2.5 text-xs font-bold text-ink-soft shadow-pastel transition hover:text-soda-deep active:scale-95 disabled:opacity-35 ${
+        reverse ? 'flex-row-reverse' : ''
+      }`}
+    >
+      {children}
+      {label}
+    </button>
+  )
+}
+
+/**
+ * 하단 재생 컨트롤 묶음.
+ *
+ * 감기(10초 뒤로/앞으로)는 재생바 바로 아래 넓은 알약 버튼으로 뒀다.
+ * 가운데 줄에 끼워 넣으면 작은 폰에서 버튼 일곱 개가 다닥다닥 붙어
+ * 걷거나 흔들리는 곳에서 옆 버튼을 잘못 누르게 된다.
+ */
 export default function Controls({
   playing,
   disabled,
@@ -42,6 +72,7 @@ export default function Controls({
   onTogglePlay,
   onPrev,
   onNext,
+  onSeekBy, // 초 단위로 앞뒤로 감기 (음수면 뒤로)
   onToggleShuffle,
   onCycleRepeat,
   onToggleMute,
@@ -52,6 +83,25 @@ export default function Controls({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 감기 — 10초씩 뒤로/앞으로 */}
+      <div className="mx-auto flex w-full max-w-xs items-center gap-2">
+        <JumpButton
+          label={`${JUMP_SECONDS}초 뒤로`}
+          disabled={disabled}
+          onClick={() => onSeekBy?.(-JUMP_SECONDS)}
+        >
+          <RotateCcw className="size-4" />
+        </JumpButton>
+        <JumpButton
+          label={`${JUMP_SECONDS}초 앞으로`}
+          disabled={disabled}
+          onClick={() => onSeekBy?.(JUMP_SECONDS)}
+          reverse
+        >
+          <RotateCw className="size-4" />
+        </JumpButton>
+      </div>
+
       <div className="flex items-center justify-center gap-2 sm:gap-3">
         <RoundButton
           label={shuffle ? '셔플 켜짐' : '셔플 꺼짐'}

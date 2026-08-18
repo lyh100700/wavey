@@ -58,4 +58,19 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- 안드로이드 13부터는 알림을 띄우려면 사용자 허락이 필요하다 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      새 버전을 직접 내려받아 설치하기 위한 권한.
+      실제로 설치할 때는 "이 앱이 앱을 설치하도록 허용" 스위치를 사용자가
+      설정 화면에서 한 번 켜 줘야 한다 (앱이 마음대로 켤 수 없는 종류다).
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!--
+      곡을 벨소리 폴더에 넣기 위한 권한.
+      안드로이드 10(API 29)부터는 필요 없어져서 그 이하에서만 요청한다.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 </manifest>

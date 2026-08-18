@@ -14,6 +14,19 @@ import WaveGlyph from './WaveGlyph.jsx'
  * 그래서 막대와 물방울의 위치만은 화면 그리는 주기(초당 60번)에 맞춰
  * 엘리먼트에서 직접 읽어 갱신한다. React 상태를 거치지 않으므로 화면 전체를
  * 다시 그리지도 않는다. 시간 글자는 초 단위라 네 번이면 충분해서 그대로 둔다.
+ *
+ * ── 폰에서 손가락으로 끌리지 않던 이유 ──
+ *
+ * 손가락이 화면에 닿으면 브라우저는 먼저 "이게 화면을 스크롤하려는 손짓인가?"를
+ * 살핀다. 그동안 우리 쪽으로는 소식을 주지 않다가, 스크롤이라고 판단하면
+ * pointercancel 한 번만 던지고 손을 떼 버린다. 그래서 막대를 끌어도 아무 일도
+ * 일어나지 않았다.
+ *
+ * 고치는 법은 "이 부분에서는 스크롤을 하지 말라"고 미리 알려 주는 것이다
+ * (touch-action: none). 그러면 처음부터 우리에게 손가락 움직임이 그대로 온다.
+ *
+ * 여기에 더해, 끄는 도중인지는 화면 상태(state)가 아니라 ref로 따로 기억한다.
+ * 상태는 화면을 다시 그린 뒤에야 반영되는데, 손가락은 그보다 빨리 움직인다.
  */
 export default function SeekBar({
   currentTime = 0,
@@ -28,6 +41,8 @@ export default function SeekBar({
   const trackRef = useRef(null)
   const fillRef = useRef(null)
   const thumbRef = useRef(null)
+  // 끄는 중인지 — 손가락 속도를 따라잡아야 해서 화면 상태와 별도로 기억한다.
+  const scrubbingRef = useRef(false)
   const [scrubTime, setScrubTime] = useState(null)
 
   const shown = scrubTime ?? currentTime
@@ -75,22 +90,38 @@ export default function SeekBar({
 
   const handlePointerDown = (e) => {
     if (disabled || duration <= 0) return
-    e.currentTarget.setPointerCapture(e.pointerId)
+    // 브라우저가 이 손짓을 스크롤로 가로채지 못하게 막는다.
+    e.preventDefault()
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // 이 기기가 포인터 붙잡기를 지원하지 않아도 아래 동작에는 지장이 없다.
+    }
+    scrubbingRef.current = true
     setScrubTime(timeAt(e.clientX))
     onScrubStart?.()
   }
 
   const handlePointerMove = (e) => {
-    if (scrubTime === null) return
+    if (!scrubbingRef.current) return
+    e.preventDefault()
     setScrubTime(timeAt(e.clientX))
   }
 
-  const endScrub = (e) => {
-    if (scrubTime === null) return
-    onSeek?.(timeAt(e.clientX))
+  const finish = (time) => {
+    if (!scrubbingRef.current) return
+    scrubbingRef.current = false
+    if (Number.isFinite(time)) onSeek?.(time)
     setScrubTime(null)
     onScrubEnd?.()
   }
+
+  // 손을 뗀 자리로 옮긴다.
+  const handlePointerUp = (e) => finish(timeAt(e.clientX))
+
+  // 전화가 오는 등 손짓이 중간에 끊긴 경우. 마지막으로 보고 있던 자리를 쓴다.
+  // (끊김 이벤트의 좌표는 믿을 수 없어서 그대로 쓰면 엉뚱한 데로 튄다.)
+  const handlePointerCancel = () => finish(scrubTime)
 
   const handleKeyDown = (e) => {
     if (disabled || duration <= 0) return
@@ -123,9 +154,12 @@ export default function SeekBar({
         aria-valuetext={`${formatTime(shown)} / ${formatTime(duration)}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={endScrub}
-        onPointerCancel={endScrub}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onKeyDown={handleKeyDown}
+        // 이 막대 위에서는 브라우저의 스크롤·확대 손짓을 쓰지 않는다.
+        // 이게 없으면 폰에서 막대를 끌어도 반응하지 않는다.
+        style={{ touchAction: 'none' }}
         className={`group relative flex h-9 items-center outline-none ${
           disabled ? 'cursor-default' : 'cursor-pointer'
         }`}

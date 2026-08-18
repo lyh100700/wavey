@@ -70,12 +70,34 @@ jobs:
       - name: APK 이름 정리
         run: cp android/app/build/outputs/apk/debug/app-debug.apk wavey.apk
 
+      # 앱이 "새 버전이 나왔는지" 판단할 때 읽는 작은 쪽지.
+      # APK 옆에 같이 올려 두면 별도 서버 없이 업데이트 확인이 된다.
+      # versionName은 app/build.gradle이 만드는 값과 똑같이 맞춘다.
+      - name: 버전 쪽지 만들기
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          SHA_SHORT="${GITHUB_SHA:0:7}"
+          SIZE=$(stat -c%s wavey.apk)
+          NOTES=$(git log -1 --pretty=%s)
+          jq -n \
+            --argjson versionCode "$BUILD_NUMBER" \
+            --arg versionName "1.0.${BUILD_NUMBER} (${SHA_SHORT})" \
+            --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/wavey.apk" \
+            --arg notes "$NOTES" \
+            --argjson sizeBytes "$SIZE" \
+            '{versionCode: $versionCode, versionName: $versionName, apkUrl: $apkUrl, notes: $notes, sizeBytes: $sizeBytes}' \
+            > version.json
+          cat version.json
+
       # 빌드할 때마다 남는 사본 (GitHub 로그인 후 Actions 탭에서 받을 수 있음)
       - name: 아티팩트로 올리기
         uses: actions/upload-artifact@v4
         with:
           name: wavey-apk
-          path: wavey.apk
+          path: |
+            wavey.apk
+            version.json
           retention-days: 30
 
       # 폰에서 바로 받을 수 있는 고정 주소를 만들기 위한 릴리스
@@ -85,7 +107,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest wavey.apk \
+          gh release create latest wavey.apk version.json \
             --title "Wavey 최신 빌드" \
             --notes "커밋 ${GITHUB_SHA:0:7} 기준으로 자동 빌드된 APK입니다. 폰 브라우저로 이 페이지를 열어 wavey.apk를 받아 설치하세요." \
             --prerelease

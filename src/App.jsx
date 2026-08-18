@@ -1,16 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { FolderOpen, Music, Video } from 'lucide-react'
+import { Bell, FolderOpen, Music, Video } from 'lucide-react'
+import ConfirmDialog from './components/ConfirmDialog.jsx'
 import Controls from './components/Controls.jsx'
 import DropOverlay from './components/DropOverlay.jsx'
 import EmptyState from './components/EmptyState.jsx'
 import MediaPanel from './components/MediaPanel.jsx'
+import RingtoneDialog from './components/RingtoneDialog.jsx'
 import SeekBar from './components/SeekBar.jsx'
 import Stage from './components/Stage.jsx'
+import UpdateDialog from './components/UpdateDialog.jsx'
 import WaveGlyph from './components/WaveGlyph.jsx'
+import useBackButton, { exitApp } from './hooks/useBackButton.js'
 import useMediaSession from './hooks/useMediaSession.js'
 import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
+import {
+  canBeRingtone,
+  canChangeSystemSound,
+  openSystemSoundSettings,
+  RINGTONE_TYPES,
+  ringtoneSupported,
+  setAsRingtone,
+} from './lib/ringtone.js'
+import {
+  canInstall,
+  checkForUpdate,
+  downloadAndInstall,
+  openInstallSettings,
+} from './lib/update.js'
 import {
   clearSource,
   deleteTrack,
@@ -53,6 +71,19 @@ export default function App() {
   const [repeat, setRepeat] = useState('off') // off | all | one
   const [dragging, setDragging] = useState(false)
   const [toast, setToast] = useState(null)
+
+  // 뒤로가기로 부르는 종료 확인창
+  const [askingExit, setAskingExit] = useState(false)
+
+  // 벨소리 설정 — 안드로이드 앱에서만 쓸 수 있다
+  const [ringtoneReady, setRingtoneReady] = useState(false)
+  const [ringtoneFor, setRingtoneFor] = useState(null) // 지정할 곡
+  const [ringtoneType, setRingtoneType] = useState('ringtone')
+  const [ringtoneBusy, setRingtoneBusy] = useState(false)
+
+  // 새 버전 안내 — progress가 null이 아니면 받는 중이다
+  const [updateInfo, setUpdateInfo] = useState(null)
+  const [updateProgress, setUpdateProgress] = useState(null)
 
   // 저장소에서 되살리는 동안에는 화면을 잠깐 비워 둔다.
   const [restoring, setRestoring] = useState(true)
@@ -360,6 +391,20 @@ export default function App() {
     [activeEl],
   )
 
+  // 지금 위치에서 초 단위로 감는다 (음수면 뒤로).
+  // 화면에 그려진 시간은 조금 늦을 수 있어서, 엘리먼트가 실제로 가리키는
+  // 위치를 기준으로 계산한다.
+  const seekBy = useCallback(
+    (delta) => {
+      const el = activeEl()
+      if (!el) return
+      const total = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : duration
+      if (!(total > 0)) return
+      seek(Math.min(total, Math.max(0, el.currentTime + delta)))
+    },
+    [activeEl, duration, seek],
+  )
+
   const cycleRepeat = useCallback(() => {
     setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off'))
   }, [])
@@ -509,6 +554,103 @@ export default function App() {
     onPrev: prev,
     onProblem: showToast,
   })
+
+  /* ── 뒤로가기와 종료 ───────────────────────────────────────── */
+
+  // 뒤로가기는 "한 겹씩 닫기"로 동작한다. 열려 있는 창이 있으면 그것부터
+  // 닫고, 더 닫을 게 없을 때 비로소 종료를 여쭤 본다.
+  const handleBack = useCallback(() => {
+    if (updateProgress !== null) return // 받는 중에는 닫지 않는다
+    if (updateInfo) {
+      setUpdateInfo(null)
+      return
+    }
+    if (ringtoneFor) {
+      setRingtoneFor(null)
+      return
+    }
+    if (askingExit) {
+      setAskingExit(false)
+      return
+    }
+    setAskingExit(true)
+  }, [updateInfo, updateProgress, ringtoneFor, askingExit])
+
+  useBackButton(handleBack)
+
+  const confirmExit = useCallback(() => {
+    // 소리부터 끄고 나간다. 안 그러면 종료 직전에 한 박자 더 들린다.
+    pause()
+    exitApp()
+  }, [pause])
+
+  /* ── 벨소리로 설정 ─────────────────────────────────────────── */
+
+  useEffect(() => {
+    ringtoneSupported().then(setRingtoneReady)
+  }, [])
+
+  const applyRingtone = useCallback(async () => {
+    const track = ringtoneFor
+    if (!track) return
+    setRingtoneBusy(true)
+
+    // 기본 벨소리를 바꾸려면 '시스템 설정 변경' 권한이 먼저 필요하다.
+    // 팝업으로 물을 수 없는 종류라 설정 화면으로 보내 드린다.
+    if (!(await canChangeSystemSound())) {
+      showToast('"시스템 설정 변경"을 켜 주세요')
+      await openSystemSoundSettings()
+    }
+
+    const result = await setAsRingtone(track, ringtoneType)
+    setRingtoneBusy(false)
+    setRingtoneFor(null)
+
+    if (!result.ok) {
+      showToast(result.message)
+      return
+    }
+    const label = RINGTONE_TYPES.find((t) => t.id === ringtoneType)?.label ?? '벨소리'
+    showToast(
+      result.applied
+        ? `${label}(으)로 설정했어요 🔔`
+        : `${label} 목록에 넣었어요. 폰 설정에서 골라 주세요`,
+    )
+  }, [ringtoneFor, ringtoneType, showToast])
+
+  /* ── 새 버전 확인 ──────────────────────────────────────────── */
+
+  // 앱을 켤 때 한 번만 확인한다. 인터넷이 없거나 실패하면 조용히 넘어간다.
+  useEffect(() => {
+    let cancelled = false
+    checkForUpdate().then((info) => {
+      if (!cancelled && info) setUpdateInfo(info)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const startUpdate = useCallback(async () => {
+    if (!updateInfo) return
+
+    // 스토어를 거치지 않는 설치라 사용자가 한 번 허용해 줘야 한다.
+    if (!(await canInstall())) {
+      showToast('"이 출처의 앱 설치"를 켜 주세요')
+      if (!(await openInstallSettings())) return
+    }
+
+    setUpdateProgress(0)
+    const result = await downloadAndInstall(updateInfo, setUpdateProgress)
+    setUpdateProgress(null)
+
+    if (!result.ok) {
+      showToast(result.message)
+      return
+    }
+    // 설치 화면이 떴다. 사용자가 거기서 마무리한다.
+    setUpdateInfo(null)
+  }, [updateInfo, showToast])
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */
 
@@ -696,6 +838,18 @@ export default function App() {
                   </p>
                 </motion.div>
               </AnimatePresence>
+
+              {/* 벨소리로 설정 — 안드로이드 앱에서 음악을 틀고 있을 때만 보인다 */}
+              {ringtoneReady && canBeRingtone(current) && (
+                <button
+                  type="button"
+                  onClick={() => setRingtoneFor(current)}
+                  className="mx-auto mt-3 flex items-center gap-1.5 rounded-full bg-white/70 px-4 py-2 text-xs font-bold text-ink-soft shadow-pastel transition hover:text-soda-deep active:scale-95"
+                >
+                  <Bell className="size-3.5" />
+                  벨소리로 설정
+                </button>
+              )}
             </div>
 
             <SeekBar
@@ -723,6 +877,7 @@ export default function App() {
               onTogglePlay={togglePlay}
               onPrev={prev}
               onNext={next}
+              onSeekBy={seekBy}
               onToggleShuffle={() => setShuffle((s) => !s)}
               onCycleRepeat={cycleRepeat}
               onToggleMute={() => setMuted((m) => !m)}
@@ -776,6 +931,36 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 뒤로가기로 부르는 종료 확인 */}
+      <ConfirmDialog
+        open={askingExit}
+        title="Wavey를 종료할까요?"
+        description="재생 중인 곡도 함께 멈춰요"
+        confirmLabel="종료"
+        cancelLabel="계속 듣기"
+        tone="coral"
+        onConfirm={confirmExit}
+        onCancel={() => setAskingExit(false)}
+      />
+
+      <RingtoneDialog
+        open={Boolean(ringtoneFor)}
+        track={ringtoneFor}
+        type={ringtoneType}
+        busy={ringtoneBusy}
+        onTypeChange={setRingtoneType}
+        onConfirm={applyRingtone}
+        onCancel={() => setRingtoneFor(null)}
+      />
+
+      <UpdateDialog
+        open={Boolean(updateInfo)}
+        info={updateInfo}
+        progress={updateProgress}
+        onConfirm={startUpdate}
+        onCancel={() => setUpdateInfo(null)}
+      />
     </div>
   )
 }

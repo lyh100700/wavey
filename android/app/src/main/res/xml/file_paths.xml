@@ -2,4 +2,9 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!--
+      새 버전 APK를 내려받아 두는 곳.
+      설치 화면은 다른 앱이라 이 통행증이 있어야 파일을 읽을 수 있다.
+    -->
+    <external-files-path name="wavey_updates" path="Download/" />
 </paths>
