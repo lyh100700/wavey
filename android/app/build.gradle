@@ -14,7 +14,17 @@ apply plugin: 'com.android.application'
  */
 def keystorePath = System.getenv("WAVEY_KEYSTORE")
 def keystorePassword = System.getenv("WAVEY_KEYSTORE_PASSWORD")
-def hasKeystore = keystorePath != null && keystorePassword != null && file(keystorePath).exists()
+
+/*
+ * 열쇠가 "없다"는 것은 두 가지 모습으로 온다. 값이 아예 없거나(null),
+ * 빈 값으로 오거나("")다. GitHub 빌드는 비밀값이 없을 때 빈 값을 넘긴다.
+ *
+ * 예전에는 null인지만 봤다. 그래서 빈 값이 오면 "열쇠가 있다"고 착각하고
+ * file("")을 부르다가 빌드가 통째로 멈췄다. 그루비에서는 빈 글자도 거짓으로
+ * 치기 때문에, 아래처럼 쓰면 두 경우가 한꺼번에 걸러진다.
+ * (&&는 앞이 거짓이면 뒤를 아예 보지 않으므로 file("")도 불리지 않는다.)
+ */
+def hasKeystore = keystorePath && keystorePassword && file(keystorePath).exists()
 
 // 버전 번호. 빌드할 때마다 올라가야 폰이 새 버전임을 알아본다.
 def buildNumber = (System.getenv("WAVEY_BUILD_NUMBER") ?: "1") as Integer
