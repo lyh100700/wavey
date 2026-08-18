@@ -15,6 +15,7 @@ import useBackButton, { exitApp } from './hooks/useBackButton.js'
 import useMediaSession from './hooks/useMediaSession.js'
 import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
+import { clampSegment, defaultSegment } from './lib/audio-trim.js'
 import {
   canBeRingtone,
   canChangeSystemSound,
@@ -80,6 +81,10 @@ export default function App() {
   const [ringtoneFor, setRingtoneFor] = useState(null) // 지정할 곡
   const [ringtoneType, setRingtoneType] = useState('ringtone')
   const [ringtoneBusy, setRingtoneBusy] = useState(false)
+  // 곡 전체 대신 고른 구간만 쓸지, 그리고 그 구간
+  const [useSegment, setUseSegment] = useState(false)
+  const [segment, setSegment] = useState({ start: 0, end: 0 })
+  const [ringtoneProgress, setRingtoneProgress] = useState(null)
 
   // 새 버전 안내 — progress가 null이 아니면 받는 중이다
   const [updateInfo, setUpdateInfo] = useState(null)
@@ -560,7 +565,8 @@ export default function App() {
   // 뒤로가기는 "한 겹씩 닫기"로 동작한다. 열려 있는 창이 있으면 그것부터
   // 닫고, 더 닫을 게 없을 때 비로소 종료를 여쭤 본다.
   const handleBack = useCallback(() => {
-    if (updateProgress !== null) return // 받는 중에는 닫지 않는다
+    // 무언가 처리 중일 때는 창을 닫지 않는다. 중간에 끊기면 뒤가 지저분해진다.
+    if (updateProgress !== null || ringtoneBusy) return
     if (updateInfo) {
       setUpdateInfo(null)
       return
@@ -574,7 +580,7 @@ export default function App() {
       return
     }
     setAskingExit(true)
-  }, [updateInfo, updateProgress, ringtoneFor, askingExit])
+  }, [updateInfo, updateProgress, ringtoneBusy, ringtoneFor, askingExit])
 
   useBackButton(handleBack)
 
@@ -590,10 +596,29 @@ export default function App() {
     ringtoneSupported().then(setRingtoneReady)
   }, [])
 
+  /** 벨소리 창을 연다. 미리 듣기와 겹치지 않도록 본 재생은 멈춰 둔다. */
+  const openRingtoneDialog = useCallback(() => {
+    if (!current) return
+    pause()
+    setUseSegment(false)
+    setSegment(defaultSegment(current.duration ?? 0))
+    setRingtoneProgress(null)
+    setRingtoneFor(current)
+  }, [current, pause])
+
+  // 손잡이를 끌 때마다 곡 길이와 최대 길이 안으로 다듬는다.
+  const changeSegment = useCallback(
+    (start, end) => {
+      setSegment(clampSegment(start, end, ringtoneFor?.duration ?? 0))
+    },
+    [ringtoneFor?.duration],
+  )
+
   const applyRingtone = useCallback(async () => {
     const track = ringtoneFor
     if (!track) return
     setRingtoneBusy(true)
+    setRingtoneProgress({ stage: 'cutting', percent: 0 })
 
     // 기본 벨소리를 바꾸려면 '시스템 설정 변경' 권한이 먼저 필요하다.
     // 팝업으로 물을 수 없는 종류라 설정 화면으로 보내 드린다.
@@ -602,8 +627,15 @@ export default function App() {
       await openSystemSoundSettings()
     }
 
-    const result = await setAsRingtone(track, ringtoneType)
+    const result = await setAsRingtone(track, {
+      type: ringtoneType,
+      // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
+      segment: useSegment && segment.end > segment.start ? segment : null,
+      onStage: (stage, percent) => setRingtoneProgress({ stage, percent }),
+    })
+
     setRingtoneBusy(false)
+    setRingtoneProgress(null)
     setRingtoneFor(null)
 
     if (!result.ok) {
@@ -616,7 +648,7 @@ export default function App() {
         ? `${label}(으)로 설정했어요 🔔`
         : `${label} 목록에 넣었어요. 폰 설정에서 골라 주세요`,
     )
-  }, [ringtoneFor, ringtoneType, showToast])
+  }, [ringtoneFor, ringtoneType, useSegment, segment, showToast])
 
   /* ── 새 버전 확인 ──────────────────────────────────────────── */
 
@@ -843,7 +875,7 @@ export default function App() {
               {ringtoneReady && canBeRingtone(current) && (
                 <button
                   type="button"
-                  onClick={() => setRingtoneFor(current)}
+                  onClick={openRingtoneDialog}
                   className="mx-auto mt-3 flex items-center gap-1.5 rounded-full bg-white/70 px-4 py-2 text-xs font-bold text-ink-soft shadow-pastel transition hover:text-soda-deep active:scale-95"
                 >
                   <Bell className="size-3.5" />
@@ -948,8 +980,13 @@ export default function App() {
         open={Boolean(ringtoneFor)}
         track={ringtoneFor}
         type={ringtoneType}
+        useSegment={useSegment}
+        segment={segment}
         busy={ringtoneBusy}
+        progress={ringtoneProgress}
         onTypeChange={setRingtoneType}
+        onUseSegmentChange={setUseSegment}
+        onSegmentChange={changeSegment}
         onConfirm={applyRingtone}
         onCancel={() => setRingtoneFor(null)}
       />

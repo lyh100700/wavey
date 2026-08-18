@@ -67,11 +67,19 @@ public class WaveyUpdaterPlugin extends Plugin {
             call.resolve(result);
             return;
         }
-        Intent intent = new Intent(
-            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-            Uri.parse("package:" + getContext().getPackageName())
-        );
-        startActivityForResult(call, intent, "installSettingsResult");
+        try {
+            Intent intent = new Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getContext().getPackageName())
+            );
+            startActivityForResult(call, intent, "installSettingsResult");
+        } catch (Exception e) {
+            // 이 설정 화면이 없는 기기도 있다. 여기서 그냥 두면 웹 쪽이 영영
+            // 답을 기다리며 멈추므로, 못 열었다고 분명히 알려 준다.
+            JSObject result = new JSObject();
+            result.put("granted", false);
+            call.resolve(result);
+        }
     }
 
     /** 설정 화면에서 돌아왔을 때. 결과를 주지 않는 화면이라 직접 다시 확인한다. */
