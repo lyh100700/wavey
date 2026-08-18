@@ -691,9 +691,11 @@ export default function App() {
     setRingtoneProgress(null)
 
     if (!result.ok) {
-      // 창은 열어 둔다. "곡 전체로 해 보세요" 같은 안내를 받은 자리에서
-      // 바로 다시 시도할 수 있어야 한다.
       showToast(result.message)
+      // 무엇이 어디서 어긋났는지 바로 볼 수 있게 기록 창을 열어 준다.
+      // 알림은 금세 사라져서, 그것만으로는 원인을 짚을 수가 없다.
+      setRingtoneFor(null)
+      openDiagnostics()
       return
     }
 
@@ -813,6 +815,10 @@ export default function App() {
       )
       // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
       openInstallSettings()
+      if (permission.reason) {
+        setUpdateInfo(null)
+        openDiagnostics()
+      }
       return
     }
 
@@ -822,6 +828,8 @@ export default function App() {
 
     if (!result.ok) {
       showToast(`받지 못했어요 — ${result.message}`)
+      setUpdateInfo(null)
+      openDiagnostics()
       return
     }
     // 설치 화면이 떴다. 사용자가 거기서 마무리한다.

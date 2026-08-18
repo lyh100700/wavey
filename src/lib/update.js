@@ -1,6 +1,7 @@
 import { CapacitorHttp } from '@capacitor/core'
 import { appVersion, isAndroidApp, updaterPlugin } from './native.js'
 import { withTimeout } from './timeout.js'
+import { note } from './log.js'
 
 /**
  * 앱을 켤 때 새 버전이 나왔는지 확인하고, 있으면 받아서 설치까지 이어 준다.
@@ -127,12 +128,18 @@ export async function checkForUpdate() {
  * 결과: { granted, reason } — 안 되는 이유까지 알려 준다.
  */
 export async function canInstall() {
+  note('업데이트: 설치 권한 확인 시작')
   try {
-    const plugin = await updaterPlugin()
+    const plugin = updaterPlugin()
     const answer = await withTimeout(plugin.canInstall(), 5000, () => null)
-    if (answer === null) return { granted: false, reason: '안드로이드가 답하지 않아요' }
+    if (answer === null) {
+      note('업데이트: 설치 권한 확인 — 답 없음')
+      return { granted: false, reason: '안드로이드가 답하지 않아요' }
+    }
+    note(`업데이트: 설치 권한 ${answer.granted ? '켜짐' : '꺼짐'}`)
     return { granted: Boolean(answer.granted) }
   } catch (err) {
+    note(`업데이트: 설치 권한 확인 실패 — ${err?.message}`)
     return { granted: false, reason: err?.message || '설치 권한을 확인하지 못했어요' }
   }
 }
@@ -173,7 +180,8 @@ export async function openReleasePage() {
  * onProgress(percent)로 진행률을 알려 준다 (총 크기를 모르면 -1).
  */
 export async function downloadAndInstall(info, onProgress) {
-  const plugin = await updaterPlugin()
+  note('업데이트: 내려받기 시작')
+  const plugin = updaterPlugin()
   let handle = null
 
   try {
@@ -185,9 +193,12 @@ export async function downloadAndInstall(info, onProgress) {
       url: info.apkUrl,
       fileName: `wavey-${info.versionCode}.apk`,
     })
+    note(`업데이트: 받음 (${path})`)
     await plugin.install({ path })
+    note('업데이트: 설치 화면 띄움')
     return { ok: true }
   } catch (err) {
+    note(`업데이트: 실패 — ${err?.message}`)
     return { ok: false, message: err?.message || '업데이트에 실패했어요' }
   } finally {
     handle?.remove?.()

@@ -1,5 +1,6 @@
 import { appVersion, isAndroidApp, ringtonePlugin, updaterPlugin } from './native.js'
 import { withTimeout } from './timeout.js'
+import { readNotes } from './log.js'
 
 /**
  * 안드로이드 기능이 실제로 닿는지 하나씩 두드려 보고 결과를 모은다.
@@ -83,7 +84,10 @@ export async function runDiagnostics() {
   return results
 }
 
-/** 결과를 사람이 읽고 옮겨 적기 좋은 글자로 만든다. */
+/** 결과와 기록을 사람이 읽고 옮겨 적기 좋은 글자로 만든다. */
 export function formatDiagnostics(results) {
-  return results.map((r) => `${r.ok ? 'O' : 'X'} ${r.label}: ${r.detail}`).join('\n')
+  const checks = results.map((r) => `${r.ok ? 'O' : 'X'} ${r.label}: ${r.detail}`).join('\n')
+  const notes = readNotes()
+  if (notes.length === 0) return checks
+  return `${checks}\n\n— 방금 있었던 일 —\n${notes.join('\n')}`
 }

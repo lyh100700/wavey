@@ -1,6 +1,7 @@
 import { cutSegment } from './audio-trim.js'
 import { isAndroidApp, ringtonePlugin } from './native.js'
 import { withTimeout } from './timeout.js'
+import { note } from './log.js'
 
 /**
  * 곡을 전화 벨소리 · 알림음 · 알람음으로 지정한다.
@@ -162,10 +163,14 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
     return { ok: false, message: '잘라낸 소리가 비어 있어요' }
   }
 
+  note(`벨소리: 파일 ${payload.size}바이트, 이름 ${fileName}`)
+
   let plugin
   try {
-    plugin = await ringtonePlugin()
-  } catch {
+    plugin = ringtonePlugin()
+    note('벨소리: 기능 연결됨')
+  } catch (err) {
+    note(`벨소리: 기능 연결 실패 — ${err?.message}`)
     return { ok: false, message: '이 기기에서는 벨소리를 설정할 수 없어요' }
   }
 
@@ -177,7 +182,10 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
   const total = Math.ceil(payload.size / CHUNK_BYTES)
   // 화면이 지금 무엇을 하는 중인지 그대로 보여 준다. 멈추면 멈춘 자리의 이름이
   // 화면에 남으므로, 따로 확인할 것 없이 어디가 막혔는지 알 수 있다.
-  const say = (percent, doing) => onStage?.('sending', percent, doing)
+  const say = (percent, doing) => {
+    note(`벨소리: ${doing}`)
+    onStage?.('sending', percent, doing)
+  }
 
   try {
     say(0, '받을 준비')
@@ -210,8 +218,10 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
       }),
       '벨소리 폴더에 넣기',
     )
+    note(`벨소리: 끝남 (기본 지정 ${result?.applied ? '됨' : '안 됨'})`)
     return { ok: true, applied: Boolean(result?.applied) }
   } catch (err) {
+    note(`벨소리: 실패 — ${err?.message}`)
     // 중간에 어긋났으면 안드로이드 쪽에 남은 임시 파일을 치운다.
     try {
       await withTimeout(plugin.cancelTransfer({}), 5000, () => null)
