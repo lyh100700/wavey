@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowDownToLine, Bell, FolderOpen, Music, Video } from 'lucide-react'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
+import DiagnosticsDialog from './components/DiagnosticsDialog.jsx'
 import Controls from './components/Controls.jsx'
 import DropOverlay from './components/DropOverlay.jsx'
 import EmptyState from './components/EmptyState.jsx'
@@ -16,6 +17,7 @@ import useMediaSession from './hooks/useMediaSession.js'
 import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
 import { clampSegment, defaultSegment } from './lib/audio-trim.js'
+import { formatDiagnostics, runDiagnostics } from './lib/diagnostics.js'
 import {
   canBeRingtone,
   openSystemSoundSettings,
@@ -89,6 +91,10 @@ export default function App() {
   // 새 버전 안내 — progress가 null이 아니면 받는 중이다
   const [updateInfo, setUpdateInfo] = useState(null)
   const [updateProgress, setUpdateProgress] = useState(null)
+
+  // 무언가 "반응이 없을" 때 어디가 막혔는지 두드려 보는 창
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnosis, setDiagnosis] = useState(null)
 
   // 저장소에서 되살리는 동안에는 화면을 잠깐 비워 둔다.
   const [restoring, setRestoring] = useState(true)
@@ -590,6 +596,25 @@ export default function App() {
     exitApp()
   }, [pause])
 
+  /* ── 문제 확인 ─────────────────────────────────────────────── */
+
+  const openDiagnostics = useCallback(async () => {
+    setDiagnosis([])
+    setDiagnosing(true)
+    const results = await runDiagnostics()
+    setDiagnosis(results)
+    setDiagnosing(false)
+  }, [])
+
+  const copyDiagnostics = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(formatDiagnostics(diagnosis ?? []))
+      showToast('복사했어요. 붙여넣어 알려 주세요')
+    } catch {
+      showToast('복사하지 못했어요. 화면을 그대로 읽어 주세요')
+    }
+  }, [diagnosis, showToast])
+
   /* ── 벨소리로 설정 ─────────────────────────────────────────── */
 
   useEffect(() => {
@@ -913,10 +938,18 @@ export default function App() {
         <h1 className="text-lg font-black tracking-tight text-ink">
           Wavey <span className="text-xs font-bold text-ink-soft">웨이비</span>
         </h1>
-        {/* 지금 깔린 게 어느 빌드인지 — APK를 새로 설치했는지 확인할 때 쓴다 */}
-        <span className="ml-auto rounded-full bg-white/60 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-soft">
+        {/*
+          지금 깔린 게 어느 빌드인지 — APK를 새로 설치했는지 확인할 때 쓴다.
+          누르면 안드로이드 기능이 어디까지 닿는지 두드려 본다.
+        */}
+        <button
+          type="button"
+          onClick={openDiagnostics}
+          title="문제 확인"
+          className="ml-auto rounded-full bg-white/60 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-soft transition active:scale-90"
+        >
           {__BUILD_ID__}
-        </span>
+        </button>
 
         {/* 손으로 새 버전 확인하기 */}
         {isApp && (
@@ -1110,6 +1143,14 @@ export default function App() {
         onSegmentChange={changeSegment}
         onConfirm={applyRingtone}
         onCancel={() => setRingtoneFor(null)}
+      />
+
+      <DiagnosticsDialog
+        open={diagnosing || Boolean(diagnosis)}
+        results={diagnosis ?? []}
+        running={diagnosing}
+        onCopy={copyDiagnostics}
+        onClose={() => setDiagnosis(null)}
       />
 
       <UpdateDialog

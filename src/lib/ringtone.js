@@ -1,5 +1,6 @@
 import { cutSegment } from './audio-trim.js'
 import { isAndroidApp, ringtonePlugin } from './native.js'
+import { withTimeout } from './timeout.js'
 
 /**
  * 곡을 전화 벨소리 · 알림음 · 알람음으로 지정한다.
@@ -23,6 +24,10 @@ export const RINGTONE_TYPES = [
 
 // 한 번에 보낼 조각의 크기. 이 정도면 통로가 버거워하지 않는다.
 const CHUNK_BYTES = 256 * 1024
+
+// 안드로이드를 부르고 이만큼 기다려도 답이 없으면 잘못된 것이다.
+// 아무 말 없이 멈춰 있는 것보다 "안 됐다"고 말해 주는 편이 낫다.
+const STEP_TIMEOUT_MS = 15000
 
 // 원본을 통째로 벨소리로 쓸 때의 크기 제한.
 const MAX_BYTES = 20 * 1024 * 1024
@@ -153,30 +158,40 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
     return { ok: false, message: '이 기기에서는 벨소리를 설정할 수 없어요' }
   }
 
+  // 안드로이드를 부르는 자리마다 시간 제한을 씌운다. 어느 걸음에서 막혔는지도
+  // 함께 알려 줘야 다음에 헤매지 않는다.
+  const step = (promise, what) =>
+    withTimeout(promise, STEP_TIMEOUT_MS, `${what}에서 안드로이드가 답하지 않아요`)
+
   try {
-    await plugin.beginTransfer()
+    await step(plugin.beginTransfer({}), '받을 준비')
 
     let sent = 0
+    let index = 0
     while (sent < payload.size) {
       const upTo = Math.min(payload.size, sent + CHUNK_BYTES)
       const data = await chunkToBase64(payload.slice(sent, upTo))
-      await plugin.appendChunk({ data })
+      await step(plugin.appendChunk({ data }), `${index + 1}번째 조각 보내기`)
       sent = upTo
+      index += 1
       onStage?.('sending', Math.round((sent / payload.size) * 100))
     }
 
-    const result = await plugin.commitTransfer({
-      fileName,
-      title: track.title,
-      mimeType,
-      type,
-      setDefault: true,
-    })
+    const result = await step(
+      plugin.commitTransfer({
+        fileName,
+        title: track.title,
+        mimeType,
+        type,
+        setDefault: true,
+      }),
+      '벨소리 폴더에 넣기',
+    )
     return { ok: true, applied: Boolean(result?.applied) }
   } catch (err) {
     // 중간에 어긋났으면 안드로이드 쪽에 남은 임시 파일을 치운다.
     try {
-      await plugin.cancelTransfer()
+      await withTimeout(plugin.cancelTransfer({}), 5000, () => null)
     } catch {
       // 치우기에 실패해도 다음 시도가 어차피 새로 시작한다.
     }
