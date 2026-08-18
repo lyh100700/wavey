@@ -865,9 +865,15 @@ export default function App() {
     setUpdateProgress(null)
 
     if (!result.ok) {
-      showToast(`받지 못했어요 — ${result.message}`)
+      // 평소에는 이런 안내를 두지 않는다. 잘 도는데 "잘 안 되면"이라고
+      // 적혀 있으면 오히려 미덥지 않아 보인다. 정말 어긋났을 때만 길을 준다.
       setUpdateInfo(null)
-      openDiagnostics()
+      setNotice({
+        title: '받지 못했어요',
+        body: `${result.message}\n브라우저에서 직접 받으시겠어요?`,
+        confirmLabel: '브라우저로 받기',
+        onConfirm: goToBrowser,
+      })
       return
     }
     // 설치 화면이 떴다. 사용자가 거기서 마무리한다.
@@ -1209,9 +1215,13 @@ export default function App() {
         open={Boolean(notice)}
         title={notice?.title ?? ''}
         description={notice?.body}
-        confirmLabel="알겠어요"
-        cancelLabel=""
-        onConfirm={() => setNotice(null)}
+        confirmLabel={notice?.confirmLabel ?? '알겠어요'}
+        cancelLabel={notice?.onConfirm ? '닫기' : ''}
+        onConfirm={() => {
+          const act = notice?.onConfirm
+          setNotice(null)
+          act?.()
+        }}
         onCancel={() => setNotice(null)}
       />
 
@@ -1239,7 +1249,6 @@ export default function App() {
         progress={updateProgress}
         onConfirm={startUpdate}
         onCancel={() => setUpdateInfo(null)}
-        onUseBrowser={goToBrowser}
       />
     </div>
   )
