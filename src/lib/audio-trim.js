@@ -124,29 +124,78 @@ export function encodeWav(samples, sampleRate) {
   return buffer
 }
 
+// 곡을 푸는 데 이보다 오래 걸리면 뭔가 잘못된 것이다. 영영 기다리게 두지 않는다.
+const DECODE_TIMEOUT_MS = 60 * 1000
+
+// 오려낸 소리의 촘촘함. 벨소리에는 이 정도면 충분하고, 기기마다 값이 달라지는
+// 것도 막아 준다.
+const OUTPUT_SAMPLE_RATE = 44100
+
+/** 약속이 정해진 시간 안에 끝나지 않으면 포기한다. */
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms)
+    promise.then(resolve, reject).finally(() => clearTimeout(timer))
+  })
+}
+
+/**
+ * 곡을 소릿값으로 푼다.
+ *
+ * ── 왜 OfflineAudioContext인가 ──
+ *
+ * 보통 쓰는 AudioContext는 폰에서 '멈춤' 상태로 시작한다. 사용자가 화면을
+ * 건드려 소리를 낼 준비가 되기 전까지는 깨어나지 않는데, 그 상태에서 곡을
+ * 풀어 달라고 하면 일이 시작되지도, 실패하지도 않은 채 영영 기다리게 된다.
+ *
+ * OfflineAudioContext는 소리를 내보내지 않고 계산만 하는 쪽이라 이 문제가 없다.
+ * 우리는 소리를 들려줄 게 아니라 값만 필요하므로 이쪽이 맞다.
+ */
+function decodeAudio(bytes) {
+  const Offline = globalThis.OfflineAudioContext ?? globalThis.webkitOfflineAudioContext
+  if (Offline) {
+    // 길이 1짜리 껍데기면 된다. 푸는 데에는 쓰이지 않는다.
+    return new Offline(1, 1, OUTPUT_SAMPLE_RATE).decodeAudioData(bytes)
+  }
+
+  // 아주 오래된 기기를 위한 대비책. 깨워 놓고 푼다.
+  const Ctx = globalThis.AudioContext ?? globalThis.webkitAudioContext
+  if (!Ctx) return Promise.reject(new Error('이 기기에서는 구간을 잘라낼 수 없어요'))
+
+  const context = new Ctx()
+  return context
+    .resume()
+    .catch(() => {
+      // 깨우지 못해도 일단 풀어 보게 둔다.
+    })
+    .then(() => context.decodeAudioData(bytes))
+    .finally(() => context.close?.())
+}
+
 /**
  * 실제로 오려내어 WAV 파일을 만든다. 브라우저에서만 동작한다.
  * 결과: Blob (audio/wav)
  */
 export async function cutSegment(file, start, end) {
-  const Ctx = globalThis.AudioContext ?? globalThis.webkitAudioContext
-  if (!Ctx) throw new Error('이 기기에서는 구간을 잘라낼 수 없어요')
-
-  const context = new Ctx()
+  let decoded
   try {
     const bytes = await file.arrayBuffer()
-    const decoded = await context.decodeAudioData(bytes)
-
-    const { start: from, end: to } = clampSegment(start, end, decoded.duration)
-    const channels = []
-    for (let c = 0; c < decoded.numberOfChannels; c += 1) {
-      channels.push(decoded.getChannelData(c))
-    }
-
-    const samples = mixToMono(channels, decoded.sampleRate, from, to)
-    return new Blob([encodeWav(samples, decoded.sampleRate)], { type: 'audio/wav' })
-  } finally {
-    // 소리 장치를 붙잡고 있으면 재생에 방해가 된다. 반드시 놓아 준다.
-    context.close?.()
+    decoded = await withTimeout(
+      decodeAudio(bytes),
+      DECODE_TIMEOUT_MS,
+      '곡을 푸는 데 너무 오래 걸려요. 곡 전체로 설정해 보세요',
+    )
+  } catch (err) {
+    // 긴 곡은 푸는 데 메모리가 많이 든다. 실패하면 다른 길을 알려 준다.
+    throw new Error(err?.message || '이 곡은 구간을 잘라낼 수 없어요. 곡 전체로 설정해 보세요')
   }
+
+  const { start: from, end: to } = clampSegment(start, end, decoded.duration)
+  const channels = []
+  for (let c = 0; c < decoded.numberOfChannels; c += 1) {
+    channels.push(decoded.getChannelData(c))
+  }
+
+  const samples = mixToMono(channels, decoded.sampleRate, from, to)
+  return new Blob([encodeWav(samples, decoded.sampleRate)], { type: 'audio/wav' })
 }

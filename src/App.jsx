@@ -637,12 +637,14 @@ export default function App() {
 
     setRingtoneBusy(false)
     setRingtoneProgress(null)
-    setRingtoneFor(null)
 
     if (!result.ok) {
+      // 창은 열어 둔다. "곡 전체로 해 보세요" 같은 안내를 받은 자리에서
+      // 바로 다시 시도할 수 있어야 한다.
       showToast(result.message)
       return
     }
+    setRingtoneFor(null)
     const label = RINGTONE_TYPES.find((t) => t.id === ringtoneType)?.label ?? '벨소리'
     showToast(
       result.applied

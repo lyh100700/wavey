@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import SegmentPicker from './SegmentPicker.jsx'
@@ -45,10 +46,20 @@ export default function RingtoneDialog({
     >
       {busy ? (
         <div className="h-2.5 w-full overflow-hidden rounded-full bg-soda/15">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-mint via-soda to-soda-deep transition-[width] duration-200"
-            style={{ width: `${progress?.stage === 'sending' ? (progress.percent ?? 0) : 8}%` }}
-          />
+          {progress?.stage === 'sending' ? (
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-mint via-soda to-soda-deep transition-[width] duration-200"
+              style={{ width: `${progress.percent ?? 0}%` }}
+            />
+          ) : (
+            // 오려내는 동안에는 얼마나 남았는지 알 수 없다. 멈춘 것처럼 보이지
+            // 않도록 물결이 오가게 둔다.
+            <motion.div
+              className="h-full w-1/3 rounded-full bg-gradient-to-r from-mint via-soda to-soda-deep"
+              animate={{ x: ['-100%', '300%'] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
