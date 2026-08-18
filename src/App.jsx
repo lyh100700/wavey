@@ -662,13 +662,13 @@ export default function App() {
 
     const cutting = useSegment && segment.end > segment.start
     setRingtoneBusy(true)
-    setRingtoneProgress({ stage: cutting ? 'cutting' : 'sending', percent: 0 })
+    setRingtoneProgress({ stage: cutting ? 'cutting' : 'sending', percent: 0, doing: '시작' })
 
     const result = await setAsRingtone(track, {
       type: ringtoneType,
       // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
       segment: cutting ? segment : null,
-      onStage: (stage, percent) => setRingtoneProgress({ stage, percent }),
+      onStage: (stage, percent, doing) => setRingtoneProgress({ stage, percent, doing }),
     })
 
     setRingtoneBusy(false)

@@ -22,8 +22,9 @@ export const RINGTONE_TYPES = [
   { id: 'alarm', label: '알람음' },
 ]
 
-// 한 번에 보낼 조각의 크기. 이 정도면 통로가 버거워하지 않는다.
-const CHUNK_BYTES = 256 * 1024
+// 한 번에 보낼 조각의 크기. 작을수록 통로가 편하고, 멈춰도 어디서 멈췄는지
+// 더 잘게 알 수 있다. 조각이 늘어도 한 번에 몇 밀리초라 느려지지 않는다.
+const CHUNK_BYTES = 64 * 1024
 
 // 안드로이드를 부르고 이만큼 기다려도 답이 없으면 잘못된 것이다.
 // 아무 말 없이 멈춰 있는 것보다 "안 됐다"고 말해 주는 편이 낫다.
@@ -43,8 +44,14 @@ export function canBeRingtone(track) {
   return Boolean(track) && track.kind !== 'video'
 }
 
-/** 조각 하나를 통로로 넘길 수 있는 글자(base64)로 바꾼다. */
-function chunkToBase64(blob) {
+/**
+ * 조각 하나를 통로로 넘길 수 있는 글자(base64)로 바꾼다.
+ *
+ * 파일 고르기로 받은 곡은 폰의 다른 앱이 쥐고 있는 파일을 가리킬 뿐이라,
+ * 읽는 도중 그쪽이 답하지 않으면 여기서 붙잡힌 채 아무 일도 일어나지 않는다.
+ * 그래서 읽기에도 시간 제한을 둔다.
+ */
+function readChunk(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('곡 파일을 읽지 못했어요'))
@@ -57,6 +64,10 @@ function chunkToBase64(blob) {
     }
     reader.readAsDataURL(blob)
   })
+}
+
+function chunkToBase64(blob) {
+  return withTimeout(readChunk(blob), STEP_TIMEOUT_MS, '곡 파일을 읽지 못했어요 (답 없음)')
 }
 
 /** 폴더에 넣을 수 있는 안전한 파일 이름으로 다듬는다. */
@@ -136,9 +147,9 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
 
   if (segment) {
     try {
-      onStage?.('cutting', 0)
-      payload = await cutSegment(track.file, segment.start, segment.end, (stage) =>
-        onStage?.(stage, 0),
+      onStage?.('cutting', 0, '준비')
+      payload = await cutSegment(track.file, segment.start, segment.end, (stage, doing) =>
+        onStage?.(stage, 0, doing),
       )
       fileName = safeFileName(track, 'wav')
       mimeType = 'audio/wav'
@@ -161,22 +172,34 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
   // 안드로이드를 부르는 자리마다 시간 제한을 씌운다. 어느 걸음에서 막혔는지도
   // 함께 알려 줘야 다음에 헤매지 않는다.
   const step = (promise, what) =>
-    withTimeout(promise, STEP_TIMEOUT_MS, `${what}에서 안드로이드가 답하지 않아요`)
+    withTimeout(promise, STEP_TIMEOUT_MS, `${what}에서 답이 없어요`)
+
+  const total = Math.ceil(payload.size / CHUNK_BYTES)
+  // 화면이 지금 무엇을 하는 중인지 그대로 보여 준다. 멈추면 멈춘 자리의 이름이
+  // 화면에 남으므로, 따로 확인할 것 없이 어디가 막혔는지 알 수 있다.
+  const say = (percent, doing) => onStage?.('sending', percent, doing)
 
   try {
+    say(0, '받을 준비')
     await step(plugin.beginTransfer({}), '받을 준비')
 
     let sent = 0
     let index = 0
     while (sent < payload.size) {
       const upTo = Math.min(payload.size, sent + CHUNK_BYTES)
+      const percent = Math.round((sent / payload.size) * 100)
+
+      say(percent, `조각 ${index + 1}/${total} 읽기`)
       const data = await chunkToBase64(payload.slice(sent, upTo))
-      await step(plugin.appendChunk({ data }), `${index + 1}번째 조각 보내기`)
+
+      say(percent, `조각 ${index + 1}/${total} 보내기`)
+      await step(plugin.appendChunk({ data }), `조각 ${index + 1} 보내기`)
+
       sent = upTo
       index += 1
-      onStage?.('sending', Math.round((sent / payload.size) * 100))
     }
 
+    say(100, '벨소리 폴더에 넣기')
     const result = await step(
       plugin.commitTransfer({
         fileName,

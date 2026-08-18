@@ -179,9 +179,9 @@ function decodeAudio(bytes) {
 export async function cutSegment(file, start, end, onStage) {
   let decoded
   try {
-    onStage?.('reading')
+    onStage?.('reading', '곡 파일 읽기')
     const bytes = await file.arrayBuffer()
-    onStage?.('cutting')
+    onStage?.('cutting', '소리로 풀기')
     decoded = await withTimeout(
       decodeAudio(bytes),
       DECODE_TIMEOUT_MS,
