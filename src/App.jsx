@@ -5,6 +5,7 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { ArrowDownToLine, Bell, FolderOpen, Music, Video } from 'lucide-react'
 import ConfirmDialog from './components/ConfirmDialog.jsx'
 import DiagnosticsDialog from './components/DiagnosticsDialog.jsx'
+import PermissionGuideDialog from './components/PermissionGuideDialog.jsx'
 import Controls from './components/Controls.jsx'
 import DropOverlay from './components/DropOverlay.jsx'
 import EmptyState from './components/EmptyState.jsx'
@@ -20,6 +21,7 @@ import useNowPlayingNotice from './hooks/useNowPlayingNotice.js'
 import { filesToTracks, folderNameOf, nextOrder, supportsFolderPick } from './lib/media.js'
 import { clampSegment, defaultSegment } from './lib/audio-trim.js'
 import { formatDiagnostics, runDiagnostics } from './lib/diagnostics.js'
+import { INSTALL_GUIDE, WRITE_SETTINGS_GUIDE } from './lib/permission-guides.js'
 import { withTimeout } from './lib/timeout.js'
 import {
   canBeRingtone,
@@ -102,6 +104,12 @@ export default function App() {
   // 무언가 "반응이 없을" 때 어디가 막혔는지 두드려 보는 창
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnosis, setDiagnosis] = useState(null)
+
+  // 폰 설정에서 손으로 켜야 하는 권한 안내 — { guide, onOpen }
+  const [permissionGuide, setPermissionGuide] = useState(null)
+
+  // 결과를 확실히 알려야 할 때 쓰는 알림창 — { title, body }
+  const [notice, setNotice] = useState(null)
 
   // 저장소에서 되살리는 동안에는 화면을 잠깐 비워 둔다.
   const [restoring, setRestoring] = useState(true)
@@ -584,6 +592,14 @@ export default function App() {
       setUpdateInfo(null)
       return
     }
+    if (notice) {
+      setNotice(null)
+      return
+    }
+    if (permissionGuide) {
+      setPermissionGuide(null)
+      return
+    }
     if (ringtoneFor) {
       setRingtoneFor(null)
       return
@@ -593,7 +609,7 @@ export default function App() {
       return
     }
     setAskingExit(true)
-  }, [updateInfo, updateProgress, ringtoneBusy, ringtoneFor, askingExit])
+  }, [updateInfo, updateProgress, ringtoneBusy, ringtoneFor, permissionGuide, notice, askingExit])
 
   useBackButton(handleBack)
 
@@ -708,9 +724,14 @@ export default function App() {
     }
 
     // 파일은 들어갔다. 기본 지정만 권한이 없어 못 했다.
-    showToast(`${label} 목록에 넣었어요. "시스템 설정 변경"을 켜 주세요`)
-    // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
-    openSystemSoundSettings()
+    // 어디로 가야 하는지 길을 보여 준다. "설정에서 켜 주세요" 한 줄로는
+    // 제조사마다 메뉴가 달라 찾을 수가 없다.
+    showToast(`${label} 목록에 넣었어요`)
+    setPermissionGuide({
+      guide: WRITE_SETTINGS_GUIDE,
+      // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
+      onOpen: () => openSystemSoundSettings(),
+    })
   }, [ringtoneFor, ringtoneType, useSegment, segment, showToast])
 
   /* ── 새 버전 확인 ──────────────────────────────────────────── */
@@ -738,9 +759,24 @@ export default function App() {
       }
       if (!manual) return
 
-      if (result.state === 'current') showToast(`이미 최신이에요 (${result.info.versionName})`)
-      else if (result.state === 'unsupported') showToast('앱으로 설치했을 때만 확인할 수 있어요')
-      else showToast(`확인하지 못했어요 — ${result.reason}`)
+      // 손으로 누른 확인은 결과를 창으로 알린다. 알림은 2.6초 뒤 사라져서
+      // 놓치기 쉽고, 그러면 "눌렀는데 아무 일도 안 일어난다"가 되어 버린다.
+      if (result.state === 'current') {
+        setNotice({
+          title: '이미 최신이에요 🌊',
+          body: `지금 버전: ${result.info.versionName}\n새 버전이 나오면 알려 드릴게요`,
+        })
+      } else if (result.state === 'unsupported') {
+        setNotice({
+          title: '앱에서만 돼요',
+          body: '업데이트 확인은 안드로이드 앱으로 설치했을 때만 할 수 있어요',
+        })
+      } else {
+        setNotice({
+          title: '확인하지 못했어요',
+          body: `${result.reason}\n인터넷 연결을 확인해 주세요`,
+        })
+      }
     },
     [showToast],
   )
@@ -808,17 +844,19 @@ export default function App() {
 
     const permission = await canInstall()
     if (!permission.granted) {
-      showToast(
-        permission.reason
-          ? `설치 권한을 확인하지 못했어요 (${permission.reason})`
-          : '"이 출처의 앱 설치"를 켜고 다시 눌러 주세요',
-      )
-      // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
-      openInstallSettings()
       if (permission.reason) {
+        // 확인 자체가 안 되는 상태 — 무슨 일이 있었는지 보여 준다.
+        showToast(`설치 권한을 확인하지 못했어요 (${permission.reason})`)
         setUpdateInfo(null)
         openDiagnostics()
+        return
       }
+      // 권한만 꺼져 있다. 어디서 켜는지 길을 보여 준다.
+      setUpdateInfo(null)
+      setPermissionGuide({
+        guide: INSTALL_GUIDE,
+        onOpen: () => openInstallSettings(),
+      })
       return
     }
 
@@ -1165,6 +1203,26 @@ export default function App() {
         onSegmentChange={changeSegment}
         onConfirm={applyRingtone}
         onCancel={() => setRingtoneFor(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(notice)}
+        title={notice?.title ?? ''}
+        description={notice?.body}
+        confirmLabel="알겠어요"
+        cancelLabel=""
+        onConfirm={() => setNotice(null)}
+        onCancel={() => setNotice(null)}
+      />
+
+      <PermissionGuideDialog
+        open={Boolean(permissionGuide)}
+        guide={permissionGuide?.guide}
+        onOpenSettings={() => {
+          permissionGuide?.onOpen?.()
+          setPermissionGuide(null)
+        }}
+        onClose={() => setPermissionGuide(null)}
       />
 
       <DiagnosticsDialog
