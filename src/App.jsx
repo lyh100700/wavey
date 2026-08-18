@@ -737,50 +737,44 @@ export default function App() {
     }
   }, [runUpdateCheck, RECHECK_MS])
 
-  /**
-   * 앱에서 받는 길이 막혔을 때의 우회로.
-   * 브라우저로 릴리스 페이지를 열어 주면 거기서 직접 받아 설치할 수 있다.
-   */
-  const fallbackToBrowser = useCallback(
-    async (why) => {
-      showToast(`${why} 받는 곳을 열어 드릴게요`)
-      if (!(await openReleasePage())) {
-        showToast('브라우저를 열지 못했어요. 릴리스 페이지에서 직접 받아 주세요')
-      }
-      setUpdateInfo(null)
-    },
-    [showToast],
-  )
+  /** 브라우저로 릴리스 페이지를 열어 준다. 앱에서 받는 길이 막혔을 때의 우회로. */
+  const goToBrowser = useCallback(async () => {
+    showToast('받는 곳을 열어 드릴게요')
+    if (!(await openReleasePage())) {
+      showToast('브라우저를 열지 못했어요. 릴리스 페이지에서 직접 받아 주세요')
+    }
+    setUpdateInfo(null)
+  }, [showToast])
 
   /**
    * 업데이트를 시작한다.
    *
-   * 여기서 가장 중요한 것은 "아무 말 없이 끝나지 않는 것"이다. 버튼을 눌렀는데
-   * 화면이 그대로면 사용자는 앱이 고장 난 줄 안다. 그래서 어느 길로 빠지든
-   * 반드시 무슨 일이 있었는지 알리고, 막히면 브라우저로 돌려보낸다.
+   * ── 설정 화면을 기다리지 않는다 ──
+   *
+   * 예전에는 '이 출처의 앱 설치' 권한 화면이 돌아오기를 기다렸다. 벨소리에서와
+   * 똑같이, 안드로이드가 그 사이 앱 화면을 다시 만들면 그 기다림이 영영 끝나지
+   * 않는다. 버튼을 눌러도 아무 일도 일어나지 않는 것처럼 보였던 이유다.
+   *
+   * 이제는 권한이 없으면 설정 화면만 띄워 두고 물러난다. 창은 열어 두므로
+   * 스위치를 켜고 돌아와 다시 누르면 된다.
    */
   const startUpdate = useCallback(async () => {
     if (!updateInfo) return
 
-    // 스토어를 거치지 않는 설치라 사용자가 한 번 허용해 줘야 한다.
+    // 눌린 것 자체를 먼저 알린다. 이게 없으면 "버튼이 죽었는지, 그다음이
+    // 막힌 것인지" 구분할 방법이 없다.
+    showToast('업데이트를 시작할게요…')
+
     const permission = await canInstall()
     if (!permission.granted) {
-      if (permission.reason) {
-        // 확인 자체가 안 되는 기기 — 앱에서 설치하는 길이 막혀 있다.
-        await fallbackToBrowser(`설치 권한을 확인하지 못했어요 (${permission.reason}).`)
-        return
-      }
-
-      showToast('"이 출처의 앱 설치"를 켜 주세요')
-      const opened = await openInstallSettings()
-      if (!opened.granted) {
-        await fallbackToBrowser(
-          opened.reason
-            ? `설정 화면을 열지 못했어요 (${opened.reason}).`
-            : '설치 권한이 아직 꺼져 있어요.',
-        )
-        return
-      }
+      showToast(
+        permission.reason
+          ? `설치 권한을 확인하지 못했어요 (${permission.reason})`
+          : '"이 출처의 앱 설치"를 켜고 다시 눌러 주세요',
+      )
+      // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
+      openInstallSettings()
+      return
     }
 
     setUpdateProgress(0)
@@ -788,12 +782,12 @@ export default function App() {
     setUpdateProgress(null)
 
     if (!result.ok) {
-      await fallbackToBrowser(`받지 못했어요 (${result.message}).`)
+      showToast(`받지 못했어요 — ${result.message}`)
       return
     }
     // 설치 화면이 떴다. 사용자가 거기서 마무리한다.
     setUpdateInfo(null)
-  }, [updateInfo, showToast, fallbackToBrowser])
+  }, [updateInfo, showToast])
 
   /* ── 목록 편집 ─────────────────────────────────────────────── */
 
@@ -1124,6 +1118,7 @@ export default function App() {
         progress={updateProgress}
         onConfirm={startUpdate}
         onCancel={() => setUpdateInfo(null)}
+        onUseBrowser={goToBrowser}
       />
     </div>
   )

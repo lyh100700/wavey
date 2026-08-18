@@ -1,4 +1,5 @@
 import { appVersion, isAndroidApp, updaterPlugin } from './native.js'
+import { withTimeout } from './timeout.js'
 
 /**
  * 앱을 켤 때 새 버전이 나왔는지 확인하고, 있으면 받아서 설치까지 이어 준다.
@@ -128,8 +129,9 @@ export async function checkForUpdate() {
 export async function canInstall() {
   try {
     const plugin = await updaterPlugin()
-    const { granted } = await plugin.canInstall()
-    return { granted: Boolean(granted) }
+    const answer = await withTimeout(plugin.canInstall(), 5000, () => null)
+    if (answer === null) return { granted: false, reason: '안드로이드가 답하지 않아요' }
+    return { granted: Boolean(answer.granted) }
   } catch (err) {
     return { granted: false, reason: err?.message || '설치 권한을 확인하지 못했어요' }
   }
@@ -137,13 +139,16 @@ export async function canInstall() {
 
 /**
  * 설치를 허용하는 설정 화면을 연다.
- * 결과: { granted, reason } — 화면을 못 열었으면 그 이유가 담긴다.
+ *
+ * 이 약속은 사용자가 설정 화면에서 돌아와야 끝나는데, 안드로이드가 그 사이
+ * 앱 화면을 다시 만들면 영영 끝나지 않는다. 화면은 이미 열렸으므로 우리가
+ * 더 기다릴 이유가 없다 — 짧게 끊는다.
  */
 export async function openInstallSettings() {
   try {
     const plugin = await updaterPlugin()
-    const { granted } = await plugin.openInstallSettings()
-    return { granted: Boolean(granted) }
+    const answer = await withTimeout(plugin.openInstallSettings(), 3000, () => null)
+    return { granted: Boolean(answer?.granted) }
   } catch (err) {
     return { granted: false, reason: err?.message || '설정 화면을 열지 못했어요' }
   }
