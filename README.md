@@ -99,7 +99,9 @@ npm test         # 저장 · 잠금화면 · 업데이트 판단 테스트
 1. 저장소의 **Releases** → **Wavey 최신 빌드** 로 들어갑니다.
 2. `wavey.apk` 를 폰으로 내려받습니다.
 3. 설치할 때 *"출처를 알 수 없는 앱"* 허용이 필요합니다.
-   (서명되지 않은 디버그 빌드라서 그렇습니다.)
+   (스토어를 거치지 않는 설치라서 그렇습니다.)
+   삼성 폰이라면 **설정 → 보안 및 개인 정보 보호 → 보안 위험 자동 차단**을
+   잠시 꺼야 할 수도 있습니다. 이건 앱이 우회할 수 없는 시스템 보호입니다.
 
 **Actions 탭**에서 `Wavey APK 빌드` 워크플로를 손으로 실행할 수도 있습니다.
 
@@ -129,6 +131,9 @@ Android Studio(JDK 21 포함)가 설치되어 있다면:
 ```bash
 npm run build
 npx cap sync android
-cd android && ./gradlew assembleDebug
-# → android/app/build/outputs/apk/debug/app-debug.apk
+cd android && ./gradlew assembleRelease
+# → android/app/build/outputs/apk/release/app-release.apk
+#
+# 배포용은 릴리스 빌드로 만든다. 디버그 빌드는 android:debuggable이 켜져 있어
+# 폰을 USB로 연결할 수 있는 사람이 앱 내부를 들여다볼 수 있다.
 ```
