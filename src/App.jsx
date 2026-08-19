@@ -1046,7 +1046,7 @@ export default function App() {
       </header>
 
       {/* ── 메인: 플레이어 ───────────────────────────────────── */}
-      <section className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/55 p-5 shadow-pastel backdrop-blur-xl">
+      <section className="flex flex-col gap-5 rounded-3xl border border-white/70 bg-white/80 p-5 shadow-pastel">
         {restoring ? (
           <div className="flex flex-col items-center gap-4 py-16">
             <motion.div
@@ -1188,7 +1188,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] mx-auto w-fit max-w-[90vw] rounded-3xl border border-white/70 bg-white/85 px-5 py-3 text-sm font-bold text-ink shadow-pastel-lg backdrop-blur-xl"
+            className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] mx-auto w-fit max-w-[90vw] rounded-3xl border border-white/70 bg-white/95 px-5 py-3 text-sm font-bold text-ink shadow-pastel-lg"
           >
             {toast.message}
           </motion.div>

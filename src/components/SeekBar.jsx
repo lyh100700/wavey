@@ -194,11 +194,11 @@ export default function SeekBar({
               scrubTime !== null ? 'scale-125' : 'group-hover:scale-110'
             }`}
           >
-            <div
-              className={`droplet size-7 bg-gradient-to-br from-white to-soda/40 shadow-pastel ring-2 ring-white ${
-                playing ? 'animate-droplet-pulse' : ''
-              }`}
-            />
+            {/* 뒤에서 번져 나가는 링. 물방울 자체를 키우면 물방울이 사라진다. */}
+            {playing && (
+              <span className="animate-droplet-pulse absolute inset-0 -z-10 rounded-full bg-soda" />
+            )}
+            <div className="droplet size-7 bg-gradient-to-br from-white to-soda/40 shadow-pastel ring-2 ring-white" />
             <WaveGlyph className="absolute inset-0 m-auto size-3.5 text-soda-deep" strokeWidth={2.6} />
           </div>
         </div>

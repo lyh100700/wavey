@@ -87,7 +87,7 @@ export default function Stage({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 28, opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-                className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-3xl border border-white/60 bg-white/70 px-4 py-3 shadow-pastel backdrop-blur-xl"
+                className="absolute inset-x-3 bottom-3 flex items-center gap-3 rounded-3xl border border-white/60 bg-white/90 px-4 py-3 shadow-pastel"
               >
                 <button
                   type="button"

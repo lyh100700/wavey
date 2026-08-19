@@ -23,15 +23,20 @@ export default function WaveDisc({ title = '', progress = 0, playing = false }) 
         style={{ background: `linear-gradient(140deg, ${from}, ${to})` }}
       />
 
-      {/* 차오르는 물 — 높이가 곧 재생 진행률이다 */}
       {/*
-        물높이는 용수철(spring)로 움직이면 안 된다. 재생 위치가 1초에 네 번
-        새로 들어오는데, 용수철이 멎기 전에 다음 목표가 주어지면 출렁이며
-        떨린다. 재생은 일정한 속도로 흐르므로 일정한 속도로 따라가게 둔다.
+        차오르는 물 — 물이 어디까지 찼는지가 곧 재생 진행률이다.
+
+        높이(height)를 늘리는 대신, 원반만 한 물덩어리를 아래로 내려놓고 위로
+        밀어 올린다. 높이를 바꾸면 브라우저가 매 프레임 배치를 다시 계산하고
+        다시 칠해야 하는데, 위치만 옮기는 것은 그래픽 장치가 알아서 처리한다.
+        보이는 모습은 같고 화면은 떨리지 않는다.
+
+        용수철(spring)로 움직이면 안 된다. 다음 목표가 멎기 전에 주어지면
+        출렁인다. 재생은 일정한 속도로 흐르므로 일정한 속도로 따라가게 둔다.
       */}
       <motion.div
-        className="absolute inset-x-0 bottom-0"
-        animate={{ height: `${level}%` }}
+        className="absolute inset-x-0 bottom-0 h-full will-change-transform"
+        animate={{ y: `${100 - level}%` }}
         transition={{ ease: 'linear', duration: 1 }}
       >
         {/* 수면 위로 겹쳐 흐르는 두 겹의 물결 */}

@@ -101,7 +101,7 @@ function MediaPanel({
   const shown = q ? source.filter((t) => t.title.toLowerCase().includes(q)) : source
 
   return (
-    <section className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/60 p-4 shadow-pastel backdrop-blur-xl sm:p-5">
+    <section className="flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/85 p-4 shadow-pastel sm:p-5">
       {/* 탭 */}
       <div role="tablist" className="flex gap-1 rounded-3xl bg-soda/10 p-1">
         {TABS.map((tab) => (

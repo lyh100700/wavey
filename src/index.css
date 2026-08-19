@@ -92,14 +92,22 @@ input[type='range'] {
   }
 }
 
-/* 물방울 썸이 통통 뛰는 움직임 */
+/*
+  물방울 썸이 통통 뛰는 움직임.
+
+  그림자(box-shadow)를 키우면 매 프레임 그 자리를 다시 칠해야 해서 안드로이드
+  웹뷰가 버거워한다. 대신 뒤에 링을 하나 깔고 그것만 키운다 — 크기와 투명도
+  변화는 그래픽 장치가 알아서 처리한다.
+*/
 @keyframes droplet-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(112, 214, 255, 0.55);
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
   }
-  70% {
-    box-shadow: 0 0 0 12px rgba(112, 214, 255, 0);
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
   }
 }
 

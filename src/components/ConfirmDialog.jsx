@@ -33,7 +33,7 @@ export default function ConfirmDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
           onClick={busy ? undefined : onCancel}
-          className="fixed inset-0 z-50 grid place-items-center bg-ink/25 px-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-6"
           role="presentation"
         >
           <motion.div
@@ -45,7 +45,7 @@ export default function ConfirmDialog({
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 340, damping: 28 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xs rounded-3xl border border-white/70 bg-white/90 p-6 shadow-pastel-lg backdrop-blur-xl"
+            className="w-full max-w-xs rounded-3xl border border-white/70 bg-white p-6 shadow-pastel-lg"
           >
             <h2 className="text-center text-base font-black text-ink">{title}</h2>
             {description && (

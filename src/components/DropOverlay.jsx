@@ -11,14 +11,14 @@ export default function DropOverlay({ show }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-soda/25 p-6 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-soda/35 p-6"
         >
           <motion.div
             initial={{ scale: 0.94, y: 12 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.94, y: 12 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="flex w-full max-w-md flex-col items-center gap-4 rounded-3xl border-4 border-dashed border-white/90 bg-white/80 px-8 py-12 text-center shadow-pastel-lg backdrop-blur-xl"
+            className="flex w-full max-w-md flex-col items-center gap-4 rounded-3xl border-4 border-dashed border-white/90 bg-white/95 px-8 py-12 text-center shadow-pastel-lg"
           >
             <motion.div
               animate={{ y: [0, -8, 0] }}
