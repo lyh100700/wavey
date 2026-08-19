@@ -105,7 +105,7 @@ export default function Stage({
                 {/* 진행 상황을 담은 얇은 물결 띠 */}
                 <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-soda/20">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-mint via-soda to-soda-deep transition-[width] duration-200"
+                    className="h-full rounded-full bg-gradient-to-r from-mint via-soda to-soda-deep transition-[width] duration-1000 ease-linear"
                     style={{ width: `${progress * 100}%` }}
                   />
                 </div>

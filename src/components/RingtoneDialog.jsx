@@ -1,11 +1,9 @@
 import { motion } from 'framer-motion'
-import { Check } from 'lucide-react'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import SegmentPicker from './SegmentPicker.jsx'
-import { RINGTONE_TYPES } from '../lib/ringtone.js'
 
 /**
- * 이 곡을 어떤 소리로, 어느 구간으로 쓸지 고르는 창.
+ * 이 곡을 전화 벨소리로 쓸지, 어느 구간을 쓸지 고르는 창.
  *
  * 구간은 기본으로 꺼 둔다. 켜면 고른 부분만 오려내는데, 그러려면 곡을 통째로
  * 풀었다가 다시 담아야 해서 곡 전체를 쓰는 것보다 시간이 걸린다.
@@ -13,12 +11,10 @@ import { RINGTONE_TYPES } from '../lib/ringtone.js'
 export default function RingtoneDialog({
   open,
   track,
-  type,
   useSegment,
   segment,
   busy,
   progress, // { stage, percent } 또는 null
-  onTypeChange,
   onUseSegmentChange,
   onSegmentChange,
   onConfirm,
@@ -45,7 +41,7 @@ export default function RingtoneDialog({
     <ConfirmDialog
       open={open}
       title="벨소리로 설정"
-      description={busy ? note : track ? `"${track.title}"을(를) 어디에 쓸까요?` : ''}
+      description={busy ? note : track ? `"${track.title}"을(를) 전화 벨소리로 설정할까요?` : ''}
       confirmLabel="설정하기"
       cancelLabel="취소"
       busy={busy}
@@ -71,37 +67,6 @@ export default function RingtoneDialog({
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            {RINGTONE_TYPES.map((option) => {
-              const selected = option.id === type
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => onTypeChange(option.id)}
-                  aria-pressed={selected}
-                  aria-label={`${option.label} — ${option.hint}`}
-                  className={`flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left transition active:scale-95 ${
-                    selected
-                      ? 'bg-gradient-to-r from-soda/25 to-mint/20 ring-1 ring-soda/40'
-                      : 'bg-white/70'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className={`block text-sm font-bold ${selected ? 'text-ink' : 'text-ink-soft'}`}>
-                      {option.label}
-                    </span>
-                    {/* 언제 울리는 소리인지 — 알림음과 알람음을 가르는 유일한 단서다 */}
-                    <span className="mt-0.5 block text-[11px] font-semibold text-ink-soft/80">
-                      {option.hint}
-                    </span>
-                  </span>
-                  {selected && <Check className="size-4 shrink-0 text-soda-deep" />}
-                </button>
-              )
-            })}
-          </div>
-
           {/* 구간 고르기 — 곡 길이를 알아야 자를 수 있다 */}
           <div className="rounded-2xl bg-white/70 p-3">
             <label

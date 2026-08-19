@@ -26,7 +26,6 @@ import { withTimeout } from './lib/timeout.js'
 import {
   canBeRingtone,
   openSystemSoundSettings,
-  RINGTONE_TYPES,
   ringtoneSupported,
   setAsRingtone,
 } from './lib/ringtone.js'
@@ -90,7 +89,6 @@ export default function App() {
   // 안드로이드 앱으로 돌고 있는지. 벨소리와 업데이트 버튼이 이 값을 본다.
   const [isApp, setIsApp] = useState(false)
   const [ringtoneFor, setRingtoneFor] = useState(null) // 지정할 곡
-  const [ringtoneType, setRingtoneType] = useState('ringtone')
   const [ringtoneBusy, setRingtoneBusy] = useState(false)
   // 곡 전체 대신 고른 구간만 쓸지, 그리고 그 구간
   const [useSegment, setUseSegment] = useState(false)
@@ -135,6 +133,13 @@ export default function App() {
 
   const showToast = useCallback((message) => {
     setToast({ id: Math.random(), message })
+  }, [])
+
+  // 아래 목록은 memo로 감싸 두었다. 손잡이를 매번 새로 만들면 그 memo가
+  // 무의미해지므로 여기서 한 번만 만든다.
+  const changeTab = useCallback((tab) => {
+    setActiveTab(tab)
+    setQuery('')
   }, [])
 
   useEffect(() => {
@@ -507,8 +512,18 @@ export default function App() {
     const el = activeEl()
     if (!el) return undefined
 
+    let lastWholeSecond = -1
+
+    // 재생 위치는 1초에 네 번쯤 들어오지만, 화면에 초 단위로만 쓰인다.
+    // 들어오는 대로 상태에 넣으면 초당 네 번 화면 전체를 다시 그리게 되고,
+    // 흐림·그림자가 깔린 큰 판들이 그때마다 다시 칠해지며 깜빡여 보인다.
+    // 초가 실제로 바뀔 때만 알린다. 재생 막대는 어차피 따로 부드럽게 움직인다.
     const onTimeUpdate = () => {
-      if (!scrubbing.current) setCurrentTime(el.currentTime)
+      if (scrubbing.current) return
+      const whole = Math.floor(el.currentTime)
+      if (whole === lastWholeSecond) return
+      lastWholeSecond = whole
+      setCurrentTime(el.currentTime)
     }
     const onLoadedMetadata = () => {
       const d = Number.isFinite(el.duration) ? el.duration : 0
@@ -691,7 +706,6 @@ export default function App() {
     let lastStep = '시작'
     const result = await withTimeout(
       setAsRingtone(track, {
-        type: ringtoneType,
         // 길이를 모르는 곡이면 구간을 쓸 수 없다. 곡 전체로 넘어간다.
         segment: cutting ? segment : null,
         onStage: (stage, percent, doing) => {
@@ -716,7 +730,7 @@ export default function App() {
     }
 
     setRingtoneFor(null)
-    const label = RINGTONE_TYPES.find((t) => t.id === ringtoneType)?.label ?? '벨소리'
+    const label = '전화 벨소리'
 
     if (result.applied) {
       showToast(`${label}(으)로 설정했어요 🔔`)
@@ -732,7 +746,7 @@ export default function App() {
       // 기다리지 않는다. 여기서 막히면 아무 일도 못 하게 된다.
       onOpen: () => openSystemSoundSettings(),
     })
-  }, [ringtoneFor, ringtoneType, useSegment, segment, showToast])
+  }, [ringtoneFor, useSegment, segment, showToast])
 
   /* ── 새 버전 확인 ──────────────────────────────────────────── */
 
@@ -1144,10 +1158,7 @@ export default function App() {
       {/* ── 아래: 무엇을 재생할지 고르는 곳 ──────────────────── */}
       <MediaPanel
         activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab)
-          setQuery('')
-        }}
+        onTabChange={changeTab}
         playlistTracks={playlistTracks}
         folderTracks={folderTracks}
         folderName={folderName}
@@ -1199,12 +1210,10 @@ export default function App() {
       <RingtoneDialog
         open={Boolean(ringtoneFor)}
         track={ringtoneFor}
-        type={ringtoneType}
         useSegment={useSegment}
         segment={segment}
         busy={ringtoneBusy}
         progress={ringtoneProgress}
-        onTypeChange={setRingtoneType}
         onUseSegmentChange={setUseSegment}
         onSegmentChange={changeSegment}
         onConfirm={applyRingtone}

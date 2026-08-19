@@ -4,7 +4,7 @@ import { withTimeout } from './timeout.js'
 import { note } from './log.js'
 
 /**
- * 곡을 전화 벨소리 · 알림음 · 알람음으로 지정한다.
+ * 곡을 전화 벨소리로 지정한다.
  *
  * ── 왜 조각내어 보내나 ──
  *
@@ -16,18 +16,6 @@ import { note } from './log.js'
  * 그래서 곡을 작은 조각으로 나눠 여러 번에 걸쳐 보낸다. 진행률도 함께 알려 줘서
  * 기다리는 동안 멈춘 것처럼 보이지 않게 한다.
  */
-
-/**
- * 고를 수 있는 소리 종류.
- *
- * '알림음'과 '알람음'은 글자가 한 끗 차이라 나란히 두면 같은 말로 보인다.
- * 언제 울리는 소리인지 함께 적어 둬야 헷갈리지 않는다.
- */
-export const RINGTONE_TYPES = [
-  { id: 'ringtone', label: '전화 벨소리', hint: '전화가 걸려 올 때' },
-  { id: 'notification', label: '알림음', hint: '문자 · 메신저가 올 때' },
-  { id: 'alarm', label: '알람음', hint: '맞춰 둔 알람이 울릴 때' },
-]
 
 // 한 번에 보낼 조각의 크기. 작을수록 통로가 편하고, 멈춰도 어디서 멈췄는지
 // 더 잘게 알 수 있다. 조각이 늘어도 한 번에 몇 밀리초라 느려지지 않는다.
@@ -124,14 +112,13 @@ export async function openSystemSoundSettings() {
  * 실제로 지정한다.
  *
  * options
- *   type      — 'ringtone' | 'notification' | 'alarm'
  *   segment   — { start, end } 를 주면 그 구간만 오려낸다. 없으면 곡 전체.
  *   onStage   — 진행 상황을 알려 준다. ('cutting' | 'sending', 0~100)
  *
  * 결과: { ok, applied, message }
  *  - applied가 false면 벨소리 폴더에는 넣었지만 기본 지정까지는 못 한 것이다.
  */
-export async function setAsRingtone(track, { type = 'ringtone', segment = null, onStage } = {}) {
+export async function setAsRingtone(track, { segment = null, onStage } = {}) {
   if (!canBeRingtone(track)) {
     return { ok: false, message: '영상은 벨소리로 쓸 수 없어요' }
   }
@@ -219,7 +206,7 @@ export async function setAsRingtone(track, { type = 'ringtone', segment = null, 
         fileName,
         title: track.title,
         mimeType,
-        type,
+        type: 'ringtone',
         setDefault: true,
       }),
       '벨소리 폴더에 넣기',

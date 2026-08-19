@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { FolderOpen, ListMusic, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { SleepingMascot } from './Mascot.jsx'
@@ -69,8 +70,12 @@ function EmptyHint({ title, body, actionLabel, onAction, secondary }) {
 /**
  * 재생할 것을 고르는 아래쪽 패널.
  * '플레이리스트'(내가 직접 담은 곡)와 '폴더'(폴더째로 불러온 곡) 두 갈래로 나뉜다.
+ *
+ * 이 패널은 재생 위치와 아무 상관이 없다. 그런데 감싸 두지 않으면 시간이 흐를
+ * 때마다 목록 전체가 다시 그려지고, 항목마다 걸린 자리 옮김 애니메이션이
+ * 매번 다시 계산되면서 화면이 떨려 보인다. 그래서 memo로 감싼다.
  */
-export default function MediaPanel({
+function MediaPanel({
   activeTab,
   onTabChange,
   playlistTracks,
@@ -245,3 +250,5 @@ export default function MediaPanel({
     </section>
   )
 }
+
+export default memo(MediaPanel)

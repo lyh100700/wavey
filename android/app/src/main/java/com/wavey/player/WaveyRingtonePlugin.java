@@ -288,9 +288,7 @@ public class WaveyRingtonePlugin extends Plugin {
         values.put(MediaStore.MediaColumns.TITLE, title);
         values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
         // 이 소리가 어느 목록에 보일지 — 벨소리 고르는 화면이 이 표시를 본다.
-        values.put(MediaStore.Audio.Media.IS_RINGTONE, "ringtone".equals(type) ? 1 : 0);
-        values.put(MediaStore.Audio.Media.IS_NOTIFICATION, "notification".equals(type) ? 1 : 0);
-        values.put(MediaStore.Audio.Media.IS_ALARM, "alarm".equals(type) ? 1 : 0);
+        values.put(MediaStore.Audio.Media.IS_RINGTONE, 1);
         values.put(MediaStore.Audio.Media.IS_MUSIC, 0);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -368,14 +366,10 @@ public class WaveyRingtonePlugin extends Plugin {
     }
 
     private String folderFor(String type) {
-        if ("notification".equals(type)) return Environment.DIRECTORY_NOTIFICATIONS;
-        if ("alarm".equals(type)) return Environment.DIRECTORY_ALARMS;
         return Environment.DIRECTORY_RINGTONES;
     }
 
     private int ringtoneType(String type) {
-        if ("notification".equals(type)) return RingtoneManager.TYPE_NOTIFICATION;
-        if ("alarm".equals(type)) return RingtoneManager.TYPE_ALARM;
         return RingtoneManager.TYPE_RINGTONE;
     }
 }
