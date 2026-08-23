@@ -589,10 +589,15 @@ export default function App() {
   useNowPlayingNotice({
     track: current,
     playing,
+    currentTime,
+    duration,
     sourceLabel,
+    onPlay: play,
+    onPause: pause,
     onTogglePlay: togglePlay,
     onNext: next,
     onPrev: prev,
+    onSeek: seek,
     onProblem: showToast,
   })
 

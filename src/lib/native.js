@@ -35,6 +35,7 @@ function plugin(name) {
 
 export const ringtonePlugin = () => plugin('WaveyRingtone')
 export const updaterPlugin = () => plugin('WaveyUpdater')
+export const nowPlayingPlugin = () => plugin('WaveyNowPlaying')
 
 /** 이 앱의 버전 번호. 새 버전이 나왔는지 견주는 기준이 된다. */
 export async function appVersion() {
