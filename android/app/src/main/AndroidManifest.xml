@@ -36,14 +36,15 @@
 
         <!--
           다른 화면으로 나가도 상태바에 Wavey가 남아 있게 해 주는 부분.
-          알림의 ⏮ ⏯ ⏭ 버튼을 눌렀을 때 앱으로 전달하는 수신기와,
-          음악을 계속 틀어 두는 서비스다.
+          상단·잠금화면의 재생 카드를 그리고, 화면이 꺼져도 소리가 이어지도록
+          CPU를 붙잡아 두는 서비스다.
+
+          foregroundServiceType이 mediaPlayback이어야 안드로이드가 "음악 재생 중"
+          으로 인정해 준다. 안드로이드 14부터는 이 종류로 띄우려면 미디어 세션도
+          있어야 하는데, 서비스 안에서 함께 만든다.
         -->
-        <receiver
-            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver"
-            android:exported="false" />
         <service
-            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:name=".WaveyPlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
     </application>

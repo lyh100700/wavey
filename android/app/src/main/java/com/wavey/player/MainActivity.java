@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         // super.onCreate()보다 먼저 해야 웹이 뜨는 시점에 이미 준비돼 있다.
         registerPlugin(WaveyRingtonePlugin.class);
         registerPlugin(WaveyUpdaterPlugin.class);
+        registerPlugin(WaveyNowPlayingPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
