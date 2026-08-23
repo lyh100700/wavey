@@ -2,7 +2,11 @@ name: Wavey APK 빌드
 
 on:
   push:
-    branches: [main]
+    # media-notification은 재생 카드를 시험해 보는 임시 가지다.
+    # 여기서 나온 APK는 Actions 탭에서만 받을 수 있고, 폰이 자동으로 받아 가는
+    # 최신 릴리스는 건드리지 않는다(아래 "최신 릴리스 갱신"이 main에서만 돈다).
+    # 시험이 끝나 main에 합치면 이 줄에서 지운다.
+    branches: [main, media-notification]
   workflow_dispatch: # Actions 탭에서 손으로도 돌릴 수 있게
 
 permissions:
