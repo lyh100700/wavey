@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  알림·잠금화면의 "이전 곡" 버튼 그림.
+  안드로이드가 알아서 색을 입히므로 모양만 흰색으로 그려 둔다.
+-->
+<vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M6,6h2.5v12H6zM19,18V6l-8.5,6z" />
+</vector>
